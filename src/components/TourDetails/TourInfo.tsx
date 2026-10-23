@@ -39,7 +39,7 @@ export default function TourInfo({ tour }: TourInfoProps) {
   const togglePackage = (idx: number) => {
     setExpandedPackages(prev => ({
       ...prev,
-      [idx]: prev[idx] === undefined ? false : !prev[idx]
+      [idx]: !prev[idx]
     }));
   };
 
@@ -137,101 +137,96 @@ export default function TourInfo({ tour }: TourInfoProps) {
             </div>
           </div>
 
-          <div className="grid gap-6">
+          <div className="grid gap-3">
             {tour.packages.map((pkg, idx) => {
               const hasTiers = pkg.tiers && pkg.tiers.length > 0;
-              const startingRate = hasTiers ? pkg.tiers[0].adultPrice : (tour.discountPrice || tour.regularPrice);
+              const validTierPrices = hasTiers
+                ? pkg.tiers.map(t => Number(t.adultPrice)).filter(n => !isNaN(n) && n > 0)
+                : [];
+              const startingRate = validTierPrices.length > 0
+                ? Math.min(...validTierPrices)
+                : (Number((pkg as any).price || (pkg as any).adultPrice || tour.discountPrice || tour.regularPrice) || 0);
               const pkgInclusions = (pkg.inclusions || []).filter(item => item && item.trim() !== '');
               const pkgExclusions = (pkg.exclusions || []).filter(item => item && item.trim() !== '');
               const packageDesc = pkg.description || pkg.details;
-              const isExpanded = expandedPackages[idx] ?? true;
+              const isExpanded = !!expandedPackages[idx];
 
               return (
                 <div 
                   key={idx}
-                  className="rounded-2xl border-2 border-gray-100 bg-white p-6 shadow-sm hover:border-orange-200 transition-all space-y-4 group text-left"
+                  className="rounded-xl border border-gray-200 bg-white shadow-2xs hover:border-orange-200 transition-all overflow-hidden group text-left"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2.5">
-                        <span className="h-6 w-6 rounded-lg bg-orange-100 text-primary text-xs font-black flex items-center justify-center shrink-0">
-                          {idx + 1}
-                        </span>
-                        <h3 className="text-xl font-black text-gray-900 tracking-tight group-hover:text-primary transition-colors">
-                          {pkg.name || `Package Option ${idx + 1}`}
-                        </h3>
+                  {/* Compact Header Row */}
+                  <button
+                    type="button"
+                    onClick={() => togglePackage(idx)}
+                    className="w-full px-4 py-3.5 flex items-center justify-between gap-4 hover:bg-orange-50/20 transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="h-6 w-6 rounded-lg bg-orange-100 text-primary text-xs font-black flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      <h3 className="text-sm sm:text-base font-extrabold text-gray-900 tracking-tight group-hover:text-primary transition-colors truncate">
+                        {pkg.name || `Package Option ${idx + 1}`}
+                      </h3>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      {startingRate > 0 && (
+                        <div className="text-right flex items-baseline gap-1.5">
+                          <span className="text-[11px] font-semibold text-gray-400">Start from</span>
+                          <span className="text-base sm:text-lg font-black text-gray-900 font-display">
+                            <FormattedPrice amount={startingRate} />
+                          </span>
+                        </div>
+                      )}
+                      <div className="h-7 w-7 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-500 group-hover:border-orange-200 group-hover:text-primary transition-colors">
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
                       </div>
+                    </div>
+                  </button>
+
+                  {/* Collapsible Details Content */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 pt-3 space-y-4 border-t border-gray-100 bg-gray-50/30 animate-fade-in">
                       {(pkg.pickupAreas || pkg.meetingPoint) && (
-                        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-gray-500">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                           {pkg.meetingPoint && (
-                            <span className="flex items-center gap-1 bg-gray-50 px-2.5 py-0.5 rounded-md border border-gray-100">
+                            <span className="flex items-center gap-1 bg-white px-2.5 py-1 rounded-md border border-gray-200">
                               <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
                               <span className="truncate max-w-[260px]">{pkg.meetingPoint}</span>
                             </span>
                           )}
                           {pkg.pickupAreas && (
-                            <span className="flex items-center gap-1 bg-gray-50 px-2.5 py-0.5 rounded-md border border-gray-200 text-gray-700 font-medium">
+                            <span className="flex items-center gap-1 bg-white px-2.5 py-1 rounded-md border border-gray-200 text-gray-700 font-medium">
                               Pickup: {pkg.pickupAreas}
                             </span>
                           )}
                         </div>
                       )}
-                    </div>
 
-                    <div className="flex flex-col sm:items-end gap-3 shrink-0">
-                      {startingRate !== undefined && startingRate > 0 && (
-                        <div className="sm:text-right bg-gray-50 sm:bg-transparent p-3 sm:p-0 rounded-xl">
-                          <div className="text-[10px] font-black uppercase tracking-wider text-gray-400">Starting from</div>
-                          <div className="flex sm:justify-end items-baseline gap-1">
-                            <span className="text-2xl font-black text-gray-900 font-display">
-                              <FormattedPrice amount={startingRate} />
-                            </span>
-                            <span className="text-xs text-gray-500 font-medium">/ person</span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <button
-                        type="button"
-                        onClick={() => togglePackage(idx)}
-                        className="flex items-center gap-1.5 text-xs font-bold text-gray-700 bg-white hover:bg-gray-50 px-3.5 py-1.5 rounded-xl border border-gray-200 transition-all cursor-pointer self-start sm:self-auto shadow-xs"
-                      >
-                        {isExpanded ? (
-                          <>
-                            <span>Collapse Details</span>
-                            <ChevronUp className="h-4 w-4" />
-                          </>
-                        ) : (
-                          <>
-                            <span>Expand Details</span>
-                            <ChevronDown className="h-4 w-4" />
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Collapsible Content */}
-                  {isExpanded && (
-                    <div className="space-y-4 pt-2 border-t border-gray-100 animate-fade-in">
                       {/* Multi-line / Paragraph Package Description */}
                       {packageDesc && (
-                        <div className="bg-gray-50/80 rounded-xl p-4 border border-gray-100">
-                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line font-medium">
+                        <div className="bg-white rounded-xl p-3.5 border border-gray-100">
+                          <p className="text-xs sm:text-sm text-gray-700 leading-relaxed whitespace-pre-line font-medium">
                             {packageDesc}
                           </p>
                         </div>
                       )}
 
                       {/* Group Pricing Tiers Table/Badges if applicable */}
-                      {hasTiers && pkg.tiers.length > 1 && (
-                        <div className="space-y-2 pt-1">
+                      {hasTiers && pkg.tiers.length > 0 && (
+                        <div className="space-y-2">
                           <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">
-                            Tiered Group Rates
+                            Package Rates
                           </span>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                             {pkg.tiers.map((tier, tIdx) => (
-                              <div key={tIdx} className="bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-xs">
+                              <div key={tIdx} className="bg-white p-2.5 rounded-xl border border-gray-100 text-xs">
                                 <div className="text-gray-500 font-semibold text-[11px]">
                                   {tier.maxParticipants >= 99
                                     ? `${tier.minParticipants}+ pax`
@@ -280,82 +275,27 @@ export default function TourInfo({ tour }: TourInfoProps) {
                           )}
                         </div>
                       )}
+
+                      {/* Booking shortcut */}
+                      <div className="pt-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const bookingForm = document.getElementById('package') || document.getElementById('tour-booking-form');
+                            if (bookingForm) {
+                              bookingForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                          }}
+                          className="px-4 py-2 rounded-xl bg-orange-50 hover:bg-primary hover:text-white text-primary text-xs font-bold transition-all border border-orange-200/80 cursor-pointer"
+                        >
+                          Book with this package &rarr;
+                        </button>
+                      </div>
                     </div>
                   )}
-
-                  {/* Booking shortcut */}
-                  <div className="pt-2 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const bookingForm = document.getElementById('package') || document.getElementById('tour-booking-form');
-                        if (bookingForm) {
-                          bookingForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
-                      }}
-                      className="px-5 py-2.5 rounded-xl bg-orange-50 hover:bg-primary hover:text-white text-primary text-xs font-bold transition-all border border-orange-200/80 cursor-pointer"
-                    >
-                      Book with this package &rarr;
-                    </button>
-                  </div>
                 </div>
               );
             })}
-          </div>
-        </section>
-      )}
-
-      {/* Optional Add-Ons & Upgrades */}
-      {tour.addOns && tour.addOns.length > 0 && (
-        <section id="addons" className="scroll-mt-[116px] space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-orange-100/80 text-primary">
-                  <Sparkles className="h-5 w-5" />
-                </span>
-                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Optional Add-Ons & Upgrades</h2>
-              </div>
-              <p className="text-xs text-gray-500 font-medium mt-1">
-                Enhance your adventure with optional extras available for this tour
-              </p>
-            </div>
-            <span className="text-xs font-bold text-gray-700 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200 self-start sm:self-auto">
-              {tour.addOns.length} {tour.addOns.length === 1 ? 'Add-On' : 'Add-Ons'} Available
-            </span>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {tour.addOns.map((addon, aIdx) => (
-              <div
-                key={addon.id || aIdx}
-                className="rounded-2xl border-2 border-gray-100 bg-white p-5 shadow-xs hover:border-orange-200 transition-all flex items-start justify-between gap-4 text-left"
-              >
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="h-6 w-6 rounded-lg bg-orange-50 text-primary text-xs font-black flex items-center justify-center shrink-0 border border-orange-100">
-                      +
-                    </span>
-                    <h3 className="text-base font-extrabold text-gray-900 leading-snug">
-                      {addon.name}
-                    </h3>
-                  </div>
-                  {addon.description && (
-                    <p className="text-xs text-gray-500 font-medium leading-relaxed pl-8">
-                      {addon.description}
-                    </p>
-                  )}
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-lg font-black text-primary block leading-none">
-                    +<FormattedPrice amount={addon.price} />
-                  </span>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1 block">
-                    / {addon.unit || 'per person'}
-                  </span>
-                </div>
-              </div>
-            ))}
           </div>
         </section>
       )}

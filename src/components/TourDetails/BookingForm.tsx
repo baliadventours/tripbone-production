@@ -145,14 +145,20 @@ export default function BookingForm({ tour }: BookingFormProps) {
     }
   };
 
-  // Starting rate calculation per person
+  // Starting rate calculation per person (lowest price across packages/tiers or base tour price)
   const startingPrice = useMemo(() => {
+    if (tour.packages && tour.packages.length > 0) {
+      const tierRates = tour.packages
+        .flatMap(p => (p.tiers && p.tiers.length > 0 ? p.tiers.map(t => Number(t.adultPrice)) : []))
+        .filter(r => !isNaN(r) && r > 0);
+      if (tierRates.length > 0) {
+        const minTierRate = Math.min(...tierRates);
+        const baseRate = Number(tour.discountPrice || tour.regularPrice || 0);
+        return baseRate > 0 ? Math.min(baseRate, minTierRate) : minTierRate;
+      }
+    }
     if (tour.discountPrice) return tour.discountPrice;
     if (tour.regularPrice) return tour.regularPrice;
-    if (tour.packages && tour.packages.length > 0) {
-      const p0 = tour.packages[0];
-      if (p0.tiers && p0.tiers.length > 0) return p0.tiers[0].adultPrice;
-    }
     return 0;
   }, [tour]);
 
@@ -199,20 +205,25 @@ export default function BookingForm({ tour }: BookingFormProps) {
       {/* Airbnb-style Sleek Booking Card */}
       <div id="package" className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-xl shadow-neutral-900/[0.04] scroll-mt-[100px] text-left">
         {/* Header: Clean Price & Micro-Trust */}
-        <div className="flex items-baseline justify-between mb-5">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl lg:text-3xl font-bold text-neutral-900 tracking-tight font-display">
-              <FormattedPrice amount={startingPrice} />
+        <div className="flex items-end justify-between mb-5">
+          <div>
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-0.5">
+              Start from
             </span>
-            <span className="text-sm font-normal text-neutral-500">/ person</span>
-            {tour.discountPrice && tour.regularPrice && (
-              <span className="text-xs text-neutral-400 line-through ml-1 font-medium">
-                <FormattedPrice amount={tour.regularPrice} />
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl lg:text-3xl font-bold text-neutral-900 tracking-tight font-display">
+                <FormattedPrice amount={startingPrice} />
               </span>
-            )}
+              <span className="text-sm font-normal text-neutral-500">/ person</span>
+              {tour.discountPrice && tour.regularPrice && (
+                <span className="text-xs text-neutral-400 line-through ml-1 font-medium">
+                  <FormattedPrice amount={tour.regularPrice} />
+                </span>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-1 text-xs font-semibold text-neutral-700">
+          <div className="flex items-center gap-1 text-xs font-semibold text-neutral-700 pb-1">
             <ShieldCheck className="w-4 h-4 text-neutral-500" />
             <span>Best price</span>
           </div>
@@ -422,59 +433,6 @@ export default function BookingForm({ tour }: BookingFormProps) {
             )}
           </AnimatePresence>
 
-          {/* Optional Add-Ons Selector */}
-          {availableAddOns.length > 0 && (
-            <div className="space-y-2 pt-1">
-              <div className="flex items-center justify-between">
-                <label className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-500">
-                  Optional Add-Ons ({availableAddOns.length})
-                </label>
-                {selectedAddOns.length > 0 && (
-                  <span className="text-[10px] font-bold text-primary">
-                    {selectedAddOns.length} selected
-                  </span>
-                )}
-              </div>
-              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
-                {availableAddOns.map((addon) => {
-                  const isSelected = selectedAddOns.some(a => a.id === addon.id);
-                  return (
-                    <button
-                      key={addon.id}
-                      type="button"
-                      onClick={() => toggleAddOn(addon)}
-                      className={cn(
-                        "w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer text-xs",
-                        isSelected
-                          ? "border-primary bg-orange-50/40 ring-1 ring-primary/20"
-                          : "border-neutral-200 hover:border-neutral-300 bg-white"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 min-w-0 pr-2">
-                        <div className={cn(
-                          "h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors",
-                          isSelected ? "bg-primary border-primary text-white" : "border-neutral-300 bg-white"
-                        )}>
-                          {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
-                        </div>
-                        <div className="min-w-0">
-                          <span className="font-bold text-neutral-900 block truncate">{addon.name}</span>
-                          {addon.description && (
-                            <span className="text-[10px] text-neutral-400 block truncate">{addon.description}</span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="font-bold text-primary shrink-0 text-[11px]">
-                        +<FormattedPrice amount={addon.price} />
-                        <span className="text-[9px] text-neutral-400 font-normal"> /{addon.unit === 'per booking' ? 'grp' : 'pax'}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           {/* Subtle Cut-off / Cancellation notice */}
           <div className="flex items-center justify-center gap-1.5 text-[11px] text-neutral-500 pt-1">
             <Clock className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
@@ -505,36 +463,6 @@ export default function BookingForm({ tour }: BookingFormProps) {
           <p className="text-xs text-neutral-500 text-center font-normal">
             You won&apos;t be charged yet
           </p>
-
-          {/* Airbnb-style Itemized Price Breakdown */}
-          <div className="pt-4 border-t border-neutral-200 space-y-3 text-xs text-neutral-600">
-            <div className="flex justify-between items-center">
-              <span className="underline decoration-neutral-300 cursor-pointer" onClick={() => setShowPriceSummary(true)}>
-                <FormattedPrice amount={startingPrice} /> × {totalGuests} {totalGuests === 1 ? 'guest' : 'guests'}
-              </span>
-              <span className="font-semibold text-neutral-900">
-                <FormattedPrice amount={estimatedTotal} />
-              </span>
-            </div>
-
-            {selectedAddOns.length > 0 && (
-              <div className="flex justify-between items-center">
-                <span className="text-neutral-600">
-                  Selected Add-Ons ({selectedAddOns.length})
-                </span>
-                <span className="font-semibold text-neutral-900">
-                  +<FormattedPrice amount={addonsTotal} />
-                </span>
-              </div>
-            )}
-
-            <div className="border-t border-neutral-200 pt-3 flex justify-between items-center font-bold text-sm text-neutral-900">
-              <span>Total before taxes</span>
-              <span className="text-base font-extrabold font-display">
-                <FormattedPrice amount={grandEstimatedTotal} />
-              </span>
-            </div>
-          </div>
         </form>
       </div>
 
