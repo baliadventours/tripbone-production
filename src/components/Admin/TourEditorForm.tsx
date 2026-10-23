@@ -1408,170 +1408,180 @@ export const TourEditorForm: React.FC<TourEditorFormProps> = ({
 
               {/* Single Day Itinerary Tab */}
               {activeTab === 'itinerary' && formData.tourDurationType !== 'multi_day' && (
-                <div className="space-y-8 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-gray-900 border-l-4 border-blue-600 pl-3 uppercase tracking-wider text-sm">Day-by-Day Journey</h3>
-                    <button type="button" onClick={() => addArrayItem('itinerary', { day: (formData.itinerary?.length || 0) + 1, title: '', description: '' })} className="font-bold text-blue-600 flex items-center gap-2">
-                       <PlusCircle className="h-5 w-5" /> Add New Day
-                    </button>
-                  </div>
-                   <div className="space-y-6">
-                    {formData.itinerary?.map((item, i) => (
-                      <div key={i} className="group relative border-2 border-gray-100 rounded-[15px] transition-all bg-white shadow-sm overflow-hidden hover:border-blue-100">
-                        <div 
-                          className="p-5 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between cursor-pointer hover:bg-gray-100/50 transition-colors"
-                          onClick={() => setExpandedItinerary(prev => prev.includes(i) ? prev.filter(idx => idx !== i) : [...prev, i])}
+                <div className="space-y-6 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/70 p-4 rounded-2xl border border-gray-100">
+                    <div>
+                      <h3 className="font-black text-gray-900 border-l-4 border-blue-600 pl-3 uppercase tracking-wider text-sm">
+                        Tour Itinerary (Step-by-Step)
+                      </h3>
+                      <p className="text-xs text-gray-500 pl-4 mt-0.5">
+                        Add each stop, activity, or highlight in chronological order
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Duration Mode Switcher */}
+                      <div className="inline-flex rounded-xl bg-white p-1 border border-gray-200 shadow-2xs mr-1">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, tourDurationType: 'single_day' })}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-600 text-white cursor-pointer transition-all"
                         >
-                           <div className="flex items-center gap-4">
+                          Single-Day
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, tourDurationType: 'multi_day' })}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-gray-500 hover:text-gray-800 cursor-pointer transition-all"
+                        >
+                          Multi-Day
+                        </button>
+                      </div>
+
+                      {(formData.itinerary?.length || 0) > 0 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedItinerary((formData.itinerary || []).map((_: any, idx: number) => idx))}
+                            className="px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs rounded-xl border border-gray-200 transition-colors cursor-pointer shadow-2xs"
+                          >
+                            Expand All
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedItinerary([])}
+                            className="px-3 py-2 bg-white hover:bg-gray-50 text-gray-600 font-bold text-xs rounded-xl border border-gray-200 transition-colors cursor-pointer shadow-2xs"
+                          >
+                            Collapse All
+                          </button>
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextIndex = formData.itinerary?.length || 0;
+                          addArrayItem('itinerary', { day: nextIndex + 1, title: '', description: '', pickup: '', image: '' });
+                          setExpandedItinerary((prev: number[]) => (prev.includes(nextIndex) ? prev : [...prev, nextIndex]));
+                        }}
+                        className="font-bold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                      >
+                        <PlusCircle className="h-4 w-4" /> Add Stop / Activity
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {(formData.itinerary || []).map((item: any, i: number) => {
+                      const isExpanded = expandedItinerary.includes(i);
+                      const stepNumber = item.day || i + 1;
+                      const pickupText = typeof item.pickup === 'object' ? (item.pickup?.description || '') : (item.pickup || '');
+
+                      return (
+                        <div key={i} className="group relative border-2 border-gray-100 rounded-2xl transition-all bg-white shadow-2xs overflow-hidden hover:border-blue-100">
+                          <div 
+                            className="p-4 sm:p-5 bg-gray-50/60 flex items-center justify-between gap-4 cursor-pointer hover:bg-gray-100/60 transition-colors select-none"
+                            onClick={() => setExpandedItinerary((prev: number[]) => prev.includes(i) ? prev.filter((idx: number) => idx !== i) : [...prev, i])}
+                          >
+                            <div className="flex items-center gap-3.5 min-w-0 flex-1">
                               <div className={cn(
-                                "h-10 w-10 rounded-full flex items-center justify-center font-black transition-all shadow-sm",
-                                expandedItinerary.includes(i) ? "bg-blue-600 text-white scale-110" : "bg-white text-gray-400 border border-gray-100"
+                                "h-9 w-9 rounded-xl flex items-center justify-center font-black text-xs transition-all shadow-2xs shrink-0",
+                                isExpanded ? "bg-blue-600 text-white" : "bg-white text-gray-600 border border-gray-200"
                               )}>
-                                 {item.day}
+                                {stepNumber}
                               </div>
-                              <div>
-                                 <h4 className="font-black text-gray-900 tracking-tight">{item.title || `Day ${item.day}`}</h4>
-                                 {!expandedItinerary.includes(i) && item.description && (
-                                   <p className="text-[10px] font-bold text-gray-400 line-clamp-1 mt-0.5">{item.description}</p>
-                                 )}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="font-black text-gray-900 tracking-tight text-sm sm:text-base truncate">
+                                    {item.title || `Stop ${stepNumber}`}
+                                  </h4>
+                                  {pickupText && (
+                                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100 truncate max-w-[200px]">
+                                      {pickupText}
+                                    </span>
+                                  )}
+                                </div>
+                                {!isExpanded && item.description && (
+                                  <p className="text-xs font-medium text-gray-400 line-clamp-1 mt-0.5">{item.description}</p>
+                                )}
                               </div>
-                           </div>
-                           <div className="flex items-center gap-3">
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
                               <button 
                                 type="button" 
                                 onClick={(e) => { e.stopPropagation(); removeArrayItem('itinerary', i); }} 
-                                className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                title="Delete Day"
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                                title="Delete Stop"
                               >
-                                 <Trash2 className="h-5 w-5"/>
+                                <Trash2 className="h-4 w-4"/>
                               </button>
-                              <div className="w-px h-6 bg-gray-200 mx-1" />
-                              <ChevronDown className={cn("h-6 w-6 text-gray-400 transition-transform duration-500", expandedItinerary.includes(i) && "rotate-180")} />
-                           </div>
-                        </div>
-
-                        {expandedItinerary.includes(i) && (
-                          <div className="p-8 space-y-6 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2">
-                            <input 
-                              placeholder="Day Title (e.g. Arrival & Discovery)"
-                              value={item.title} 
-                              onChange={e => updateArrayItem('itinerary', i, { ...item, title: e.target.value })}
-                              className="w-full font-black text-2xl mb-1 border-none focus:ring-0 p-0 text-gray-900 placeholder:text-gray-200"
-                            />
-                            
-                            <div className="space-y-4 pt-4 border-t border-gray-50">
-                              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Arrival / Pick-up Details</label>
-                              <div className="flex gap-6 items-start">
-                                <div className="flex-1 bg-gray-50/50 p-4 rounded-xl border-2 border-gray-50 focus-within:border-blue-200 focus-within:bg-white transition-all">
-                                  <input 
-                                    placeholder="Pick Up details (e.g. 08:30 AM at Hotel Lobby)"
-                                    value={typeof item.pickup === 'object' ? item.pickup?.description : item.pickup || ''} 
-                                    onChange={e => updateArrayItem('itinerary', i, { 
-                                      ...item, 
-                                      pickup: { ...(typeof item.pickup === 'object' ? item.pickup : {}), description: e.target.value } 
-                                    })}
-                                    className="w-full text-sm font-bold text-blue-600 bg-transparent border-none focus:ring-0 p-0 placeholder:text-blue-200"
-                                  />
-                                </div>
-                                <div className="w-32 aspect-video rounded-[10px] bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden relative group shadow-inner">
-                                   {typeof item.pickup === 'object' && item.pickup?.image ? (
-                                     <>
-                                       <img src={item.pickup.image} className="h-full w-full object-cover transition-transform group-hover:scale-110" />
-                                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                           <button 
-                                            type="button" 
-                                            onClick={() => {
-                                              openMediaGallery((urls: string[]) => {
-                                                if (urls[0]) {
-                                                  updateArrayItem('itinerary', i, (curr: any) => ({ 
-                                                    ...curr, 
-                                                    pickup: { ...(typeof curr?.pickup === 'object' ? curr.pickup : {}), image: urls[0], description: typeof curr?.pickup === 'object' ? curr.pickup?.description || '' : curr?.pickup || '' } 
-                                                  }));
-                                                }
-                                              }, false);
-                                            }} 
-                                            className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors cursor-pointer"
-                                            title="Change Image from Gallery"
-                                          >
-                                            <ImageIcon className="h-4 w-4" />
-                                          </button>
-                                          <button type="button" onClick={() => updateArrayItem('itinerary', i, (curr: any) => ({ ...curr, pickup: { ...(typeof curr?.pickup === 'object' ? curr.pickup : {}), image: '' } }))} className="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 transition-colors cursor-pointer" title="Delete Image"><Trash2 className="h-4 w-4" /></button>
-                                       </div>
-                                     </>
-                                   ) : (
-                                     <div className="h-full w-full flex flex-col justify-center items-center p-2 relative">
-                                        <div className="flex gap-2 mb-1.5 shrink-0 z-10">
-                                          {/* Upload */}
-                                          <div className="relative">
-                                            <button type="button" className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 p-1.5 rounded-md text-xs font-bold leading-none shrink-0 shadow-xs flex items-center justify-center">
-                                              <Upload className="h-3.5 w-3.5 text-gray-400" />
-                                            </button>
-                                            <input 
-                                              type="file" 
-                                              onChange={async (e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                  try {
-                                                    const url = await uploadImage(file);
-                                                    updateArrayItem('itinerary', i, (curr: any) => ({ 
-                                                      ...curr, 
-                                                      pickup: { ...(typeof curr?.pickup === 'object' ? curr.pickup : {}), image: url, description: typeof curr?.pickup === 'object' ? curr.pickup?.description || '' : curr?.pickup || '' } 
-                                                    }));
-                                                  } catch (err) {
-                                                    console.error("Failed to upload pickup image", err);
-                                                  }
-                                                }
-                                              }} 
-                                              className="absolute inset-0 opacity-0 cursor-pointer" 
-                                            />
-                                          </div>
-                                          
-                                          {/* Gallery */}
-                                          <button 
-                                            type="button" 
-                                            onClick={() => {
-                                              openMediaGallery((urls: string[]) => {
-                                                if (urls[0]) {
-                                                  updateArrayItem('itinerary', i, (curr: any) => ({ 
-                                                    ...curr, 
-                                                    pickup: { ...(typeof curr?.pickup === 'object' ? curr.pickup : {}), image: urls[0], description: typeof curr?.pickup === 'object' ? curr.pickup?.description || '' : curr?.pickup || '' } 
-                                                  }));
-                                                }
-                                              }, false);
-                                            }}
-                                            className="bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-600 p-1.5 rounded-md text-xs font-bold leading-none shrink-0 shadow-xs flex items-center justify-center cursor-pointer"
-                                          >
-                                            <ImageIcon className="h-3.5 w-3.5" />
-                                          </button>
-                                        </div>
-                                        <span className="text-[8px] text-gray-400 font-extrabold uppercase scale-90">Image</span>
-                                     </div>
-                                   )}
-                                </div>
+                              <div className="w-px h-5 bg-gray-200 mx-0.5" />
+                              <div className="h-8 w-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500">
+                                <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isExpanded && "rotate-180")} />
                               </div>
                             </div>
+                          </div>
 
-                            <div className="grid md:grid-cols-4 gap-8 pt-4 border-t border-gray-50">
-                              <div className="md:col-span-2 space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Main Description</label>
-                                <textarea 
-                                  placeholder="What will happen on this day? Be descriptive and engaging..."
-                                  rows={6}
-                                  value={item.description}
-                                  onChange={e => updateArrayItem('itinerary', i, { ...item, description: e.target.value })}
-                                  className="w-full text-sm font-medium text-gray-600 border-none focus:ring-0 p-0 bg-transparent scrollbar-hide min-h-[150px]"
-                                />
+                          {isExpanded && (
+                            <div className="p-5 sm:p-6 space-y-5 border-t border-gray-100 bg-white motion-safe:animate-in motion-safe:fade-in">
+                              <div className="grid sm:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                  <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block">
+                                    Stop / Activity Title
+                                  </label>
+                                  <input 
+                                    placeholder="e.g. Mount Batur Sunrise Viewpoint"
+                                    value={item.title || ''} 
+                                    onChange={e => updateArrayItem('itinerary', i, { ...item, title: e.target.value })}
+                                    className="w-full font-bold text-sm bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-900 placeholder:text-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition-all"
+                                  />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block">
+                                    Time / Location / Pick-up Note (Optional)
+                                  </label>
+                                  <input 
+                                    placeholder="e.g. 08:30 AM • Hotel Pick-up or Location"
+                                    value={typeof item.pickup === 'object' ? (item.pickup?.description || '') : (item.pickup || '')} 
+                                    onChange={e => updateArrayItem('itinerary', i, { 
+                                      ...item, 
+                                      pickup: typeof item.pickup === 'object'
+                                        ? { ...item.pickup, description: e.target.value }
+                                        : e.target.value
+                                    })}
+                                    className="w-full text-sm font-semibold bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-gray-800 placeholder:text-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition-all"
+                                  />
+                                </div>
                               </div>
-                              <div className="md:col-span-2 space-y-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex justify-between items-center">
-                                  <span>Featured Day Image</span>
-                                </label>
-                                <div className="relative aspect-video rounded-2xl bg-gray-100 border-4 border-white shadow-xl overflow-hidden group">
-                                   {item.image ? (
-                                     <>
-                                       <img src={item.image} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                                           <button 
+
+                              <div className="grid md:grid-cols-12 gap-6 pt-2">
+                                <div className="md:col-span-7 space-y-1.5">
+                                  <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider block">
+                                    Activity Description
+                                  </label>
+                                  <textarea 
+                                    placeholder="Describe what guests will experience at this stop..."
+                                    rows={5}
+                                    value={item.description || ''}
+                                    onChange={e => updateArrayItem('itinerary', i, { ...item, description: e.target.value })}
+                                    className="w-full text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-xl p-3.5 placeholder:text-gray-400 focus:bg-white focus:border-blue-500 focus:outline-none transition-all"
+                                  />
+                                </div>
+
+                                <div className="md:col-span-5 space-y-1.5">
+                                  <label className="text-[11px] font-black text-gray-500 uppercase tracking-wider flex justify-between items-center">
+                                    <span>Stop Photo (Optional)</span>
+                                  </label>
+                                  <div className="relative aspect-video rounded-xl bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden group">
+                                    {(item.image || (typeof item.pickup === 'object' && item.pickup?.image)) ? (
+                                      <>
+                                        <img
+                                          src={item.image || (typeof item.pickup === 'object' ? item.pickup?.image : '')}
+                                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                                          <button 
                                             type="button" 
                                             onClick={() => {
                                               openMediaGallery((urls: string[]) => {
@@ -1580,276 +1590,405 @@ export const TourEditorForm: React.FC<TourEditorFormProps> = ({
                                                 }
                                               }, false);
                                             }} 
-                                            className="bg-blue-600 text-white p-3 rounded-full hover:bg-blue-700 transition-colors shadow-lg cursor-pointer"
+                                            className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 transition-colors shadow-lg cursor-pointer"
                                             title="Change image from Gallery"
                                           >
-                                            <ImageIcon className="h-6 w-6" />
+                                            <ImageIcon className="h-4 w-4" />
                                           </button>
-                                          <button type="button" onClick={() => updateArrayItem('itinerary', i, (curr: any) => ({ ...curr, image: '' }))} className="bg-red-600 text-white p-3 rounded-full hover:bg-red-700 transition-colors shadow-lg cursor-pointer" title="Delete image"><Trash2 className="h-6 w-6" /></button>
-                                       </div>
-                                     </>
-                                   ) : (
-                                     <div className="h-full w-full flex flex-col items-center justify-center gap-3 bg-gray-50/50 p-6">
-                                       <div className="flex gap-4">
-                                         {/* Drop/Upload */}
-                                         <div className="relative">
-                                           <button type="button" className="flex items-center gap-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 duration-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm">
-                                             <Upload className="h-4 w-4 text-gray-500" />
-                                             Upload Image
-                                           </button>
-                                           <input type="file" onChange={(e) => handleItineraryImageUpload(i, e)} className="absolute inset-0 opacity-0 cursor-pointer" />
-                                         </div>
-                                         
-                                         {/* Gallery */}
-                                         <button 
-                                           type="button" 
-                                           onClick={() => {
-                                             openMediaGallery((urls: string[]) => {
-                                               if (urls[0]) {
-                                                 updateArrayItem('itinerary', i, (curr: any) => ({ ...curr, image: urls[0] }));
-                                               }
-                                             }, false);
-                                           }}
-                                           className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-600 duration-200 px-4 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer"
-                                         >
-                                           <ImageIcon className="h-4 w-4" />
-                                           Pick Gallery
-                                         </button>
-                                       </div>
-                                       <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Choose featured photo for Day {item.day}</span>
-                                     </div>
-                                   )}
+                                          <button
+                                            type="button"
+                                            onClick={() => updateArrayItem('itinerary', i, (curr: any) => ({
+                                              ...curr,
+                                              image: '',
+                                              pickup: typeof curr?.pickup === 'object' ? { ...curr.pickup, image: '' } : curr?.pickup
+                                            }))}
+                                            className="bg-red-600 text-white p-2.5 rounded-full hover:bg-red-700 transition-colors shadow-lg cursor-pointer"
+                                            title="Delete image"
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="h-full w-full flex flex-col items-center justify-center gap-2.5 p-4">
+                                        <div className="flex flex-wrap justify-center gap-2">
+                                          <div className="relative">
+                                            <button type="button" className="flex items-center gap-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-3 py-2 rounded-xl text-xs font-bold shadow-2xs">
+                                              <Upload className="h-3.5 w-3.5 text-gray-500" />
+                                              Upload
+                                            </button>
+                                            <input type="file" onChange={(e) => handleItineraryImageUpload(i, e)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                          </div>
+                                          <button 
+                                            type="button" 
+                                            onClick={() => {
+                                              openMediaGallery((urls: string[]) => {
+                                                if (urls[0]) {
+                                                  updateArrayItem('itinerary', i, (curr: any) => ({ ...curr, image: urls[0] }));
+                                                }
+                                              }, false);
+                                            }}
+                                            className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-600 px-3 py-2 rounded-xl text-xs font-bold shadow-2xs cursor-pointer"
+                                          >
+                                            <ImageIcon className="h-3.5 w-3.5" />
+                                            Gallery
+                                          </button>
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 font-semibold">Add photo for Stop {stepNumber}</span>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {(formData.itinerary || []).length === 0 && (
+                      <div className="text-center py-12 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl space-y-3">
+                        <Compass className="h-10 w-10 text-gray-300 mx-auto" />
+                        <div>
+                          <p className="text-sm font-bold text-gray-600">No itinerary stops added yet</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Add step-by-step stops so customers know what to expect on this tour.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            addArrayItem('itinerary', { day: 1, title: '', description: '', pickup: '', image: '' });
+                            setExpandedItinerary([0]);
+                          }}
+                          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs cursor-pointer transition-all"
+                        >
+                          <PlusCircle className="h-4 w-4" /> Add First Stop
+                        </button>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               )}
 
               {/* Multi-Day Itinerary Tab */}
               {activeTab === 'itinerary' && formData.tourDurationType === 'multi_day' && (
-                <div className="space-y-8 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4">
-                  <div className="flex items-center justify-between">
+                <div className="space-y-6 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/70 p-4 rounded-2xl border border-gray-100">
                     <div>
                       <h3 className="font-black text-gray-900 border-l-4 border-blue-600 pl-3 uppercase tracking-wider text-sm">Multi-Day Tour Itinerary</h3>
-                      <p className="text-xs text-gray-400 pl-4 mt-0.5">Organize day-by-day title, description, and time-stamped schedule with photos</p>
+                      <p className="text-xs text-gray-500 pl-4 mt-0.5">Organize day-by-day title, description, and time-stamped schedule with photos</p>
                     </div>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        const days = formData.multiDayItinerary || [];
-                        const nextDayNum = days.length + 1;
-                        const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
-                        const label = romanNumerals[nextDayNum - 1] || `${nextDayNum}`;
-                        setFormData({
-                          ...formData,
-                          multiDayItinerary: [
-                            ...days,
-                            {
-                              dayNumber: nextDayNum,
-                              title: `Day ${label}: Title`,
-                              description: '',
-                              itineraryItems: [
-                                { time: '08:00', title: 'Pick up at airport', image: '', description: '' }
-                              ]
-                            }
-                          ]
-                        });
-                      }} 
-                      className="font-bold bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-sm transition-all"
-                    >
-                      <PlusCircle className="h-4 w-4" /> Add Day
-                    </button>
-                  </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Duration Mode Switcher */}
+                      <div className="inline-flex rounded-xl bg-white p-1 border border-gray-200 shadow-2xs mr-1">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, tourDurationType: 'single_day' })}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-gray-500 hover:text-gray-800 cursor-pointer transition-all"
+                        >
+                          Single-Day
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, tourDurationType: 'multi_day' })}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-600 text-white cursor-pointer transition-all"
+                        >
+                          Multi-Day
+                        </button>
+                      </div>
 
-                  <div className="space-y-6">
-                    {(formData.multiDayItinerary || []).map((day, dayIdx) => (
-                      <div key={dayIdx} className="border-2 border-gray-100 rounded-2xl bg-white shadow-sm overflow-hidden space-y-4 p-6">
-                        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                          <div className="flex items-center gap-3 flex-1">
-                            <span className="h-8 w-8 bg-blue-600 text-white font-black rounded-xl text-xs flex items-center justify-center shrink-0">
-                              {day.dayNumber}
-                            </span>
-                            <input
-                              type="text"
-                              placeholder="Day Title (e.g. Day I: Pick up & Arrival)"
-                              value={day.title}
-                              onChange={e => {
-                                const updated = [...(formData.multiDayItinerary || [])];
-                                updated[dayIdx] = { ...updated[dayIdx], title: e.target.value };
-                                setFormData({ ...formData, multiDayItinerary: updated });
-                              }}
-                              className="font-black text-lg text-gray-900 border-b border-dashed border-gray-200 focus:border-blue-600 focus:outline-none w-full max-w-lg pb-1"
-                            />
-                          </div>
+                      {(formData.multiDayItinerary?.length || 0) > 0 && (
+                        <>
                           <button
                             type="button"
-                            onClick={() => {
-                              const updated = (formData.multiDayItinerary || []).filter((_, idx) => idx !== dayIdx);
-                              setFormData({ ...formData, multiDayItinerary: updated });
-                            }}
-                            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            title="Delete Day"
+                            onClick={() => setExpandedItinerary((formData.multiDayItinerary || []).map((_: any, idx: number) => idx))}
+                            className="px-3 py-2 bg-white hover:bg-gray-50 text-gray-700 font-bold text-xs rounded-xl border border-gray-200 transition-colors cursor-pointer shadow-2xs"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            Expand All
                           </button>
-                        </div>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedItinerary([])}
+                            className="px-3 py-2 bg-white hover:bg-gray-50 text-gray-600 font-bold text-xs rounded-xl border border-gray-200 transition-colors cursor-pointer shadow-2xs"
+                          >
+                            Collapse All
+                          </button>
+                        </>
+                      )}
 
-                        <div>
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Day Description</label>
-                          <textarea
-                            placeholder="Overview description for this day..."
-                            rows={2}
-                            value={day.description}
-                            onChange={e => {
-                              const updated = [...(formData.multiDayItinerary || [])];
-                              updated[dayIdx] = { ...updated[dayIdx], description: e.target.value };
-                              setFormData({ ...formData, multiDayItinerary: updated });
-                            }}
-                            className="w-full text-xs font-medium text-gray-700 bg-gray-50 border border-gray-100 rounded-xl p-3 focus:outline-none focus:border-blue-300"
-                          />
-                        </div>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const days = formData.multiDayItinerary || [];
+                          const nextIdx = days.length;
+                          const nextDayNum = days.length + 1;
+                          const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+                          const label = romanNumerals[nextDayNum - 1] || `${nextDayNum}`;
+                          setFormData({
+                            ...formData,
+                            multiDayItinerary: [
+                              ...days,
+                              {
+                                dayNumber: nextDayNum,
+                                title: `Day ${label}: Title`,
+                                description: '',
+                                itineraryItems: [
+                                  { time: '08:00', title: 'Pick up at airport', image: '', description: '' }
+                                ]
+                              }
+                            ]
+                          });
+                          setExpandedItinerary((prev: number[]) => (prev.includes(nextIdx) ? prev : [...prev, nextIdx]));
+                        }} 
+                        className="font-bold bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                      >
+                        <PlusCircle className="h-4 w-4" /> Add Day
+                      </button>
+                    </div>
+                  </div>
 
-                        {/* Time Schedule Items */}
-                        <div className="space-y-4 pt-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-black text-gray-800 uppercase tracking-wider">Schedule Items</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = [...(formData.multiDayItinerary || [])];
-                                const currentItems = updated[dayIdx].itineraryItems || [];
-                                updated[dayIdx] = {
-                                  ...updated[dayIdx],
-                                  itineraryItems: [...currentItems, { time: '09:00', title: '', image: '', description: '' }]
-                                };
-                                setFormData({ ...formData, multiDayItinerary: updated });
-                              }}
-                              className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                            >
-                              <Plus className="h-3.5 w-3.5" /> Add Schedule Event
-                            </button>
+                  <div className="space-y-4">
+                    {(formData.multiDayItinerary || []).map((day: any, dayIdx: number) => {
+                      const isExpanded = expandedItinerary.includes(dayIdx);
+
+                      return (
+                        <div key={dayIdx} className="border-2 border-gray-100 rounded-2xl bg-white shadow-2xs overflow-hidden transition-all hover:border-blue-100">
+                          <div
+                            onClick={() => setExpandedItinerary((prev: number[]) => prev.includes(dayIdx) ? prev.filter((idx: number) => idx !== dayIdx) : [...prev, dayIdx])}
+                            className="p-4 sm:p-5 bg-gray-50/60 flex items-center justify-between gap-4 cursor-pointer hover:bg-gray-100/60 transition-colors"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <span className={cn(
+                                "px-3 py-1.5 font-black rounded-xl text-xs shrink-0 transition-colors",
+                                isExpanded ? "bg-blue-600 text-white" : "bg-white text-gray-700 border border-gray-200"
+                              )}>
+                                DAY {day.dayNumber || dayIdx + 1}
+                              </span>
+                              <input
+                                type="text"
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="Day Title (e.g. Day 1: Arrival & Discovery)"
+                                value={day.title || ''}
+                                onChange={e => {
+                                  const updated = [...(formData.multiDayItinerary || [])];
+                                  updated[dayIdx] = { ...updated[dayIdx], title: e.target.value };
+                                  setFormData({ ...formData, multiDayItinerary: updated });
+                                }}
+                                className="font-black text-sm sm:text-base text-gray-900 bg-transparent border-b border-dashed border-gray-300 focus:border-blue-600 focus:bg-white focus:px-2 rounded focus:outline-none w-full max-w-lg py-0.5"
+                              />
+                              <span className="hidden sm:inline-block text-[11px] font-bold text-gray-400 shrink-0">
+                                ({(day.itineraryItems || []).length} events)
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const updated = (formData.multiDayItinerary || []).filter((_: any, idx: number) => idx !== dayIdx);
+                                  setFormData({ ...formData, multiDayItinerary: updated });
+                                }}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                                title="Delete Day"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                              <div className="w-px h-5 bg-gray-200 mx-0.5" />
+                              <div className="h-8 w-8 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500">
+                                <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", isExpanded && "rotate-180")} />
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="space-y-3 pl-2 border-l-2 border-blue-100">
-                            {(day.itineraryItems || []).map((item, itemIdx) => (
-                              <div key={itemIdx} className="bg-gray-50/70 p-4 rounded-xl border border-gray-100 space-y-3 relative group">
-                                <div className="flex items-center gap-3">
-                                  <input
-                                    type="text"
-                                    placeholder="08:00"
-                                    value={item.time}
-                                    onChange={e => {
-                                      const updated = [...(formData.multiDayItinerary || [])];
-                                      const items = [...updated[dayIdx].itineraryItems];
-                                      items[itemIdx] = { ...items[itemIdx], time: e.target.value };
-                                      updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
-                                      setFormData({ ...formData, multiDayItinerary: updated });
-                                    }}
-                                    className="w-24 text-xs font-black bg-white border border-gray-200 rounded-lg p-2 text-blue-700 text-center"
-                                  />
-                                  <input
-                                    type="text"
-                                    placeholder="Event Title (e.g. Pick up at airport)"
-                                    value={item.title}
-                                    onChange={e => {
-                                      const updated = [...(formData.multiDayItinerary || [])];
-                                      const items = [...updated[dayIdx].itineraryItems];
-                                      items[itemIdx] = { ...items[itemIdx], title: e.target.value };
-                                      updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
-                                      setFormData({ ...formData, multiDayItinerary: updated });
-                                    }}
-                                    className="flex-1 text-xs font-bold bg-white border border-gray-200 rounded-lg p-2 text-gray-900"
-                                  />
+                          {isExpanded && (
+                            <div className="p-5 sm:p-6 space-y-5 border-t border-gray-100">
+                              <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Day Overview Description</label>
+                                <textarea
+                                  placeholder="Overview description for this day..."
+                                  rows={2}
+                                  value={day.description || ''}
+                                  onChange={e => {
+                                    const updated = [...(formData.multiDayItinerary || [])];
+                                    updated[dayIdx] = { ...updated[dayIdx], description: e.target.value };
+                                    setFormData({ ...formData, multiDayItinerary: updated });
+                                  }}
+                                  className="w-full text-xs font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-xl p-3 focus:bg-white focus:outline-none focus:border-blue-400"
+                                />
+                              </div>
+
+                              {/* Time Schedule Items */}
+                              <div className="space-y-4 pt-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-black text-gray-800 uppercase tracking-wider">Schedule Items</span>
                                   <button
                                     type="button"
                                     onClick={() => {
                                       const updated = [...(formData.multiDayItinerary || [])];
-                                      const items = updated[dayIdx].itineraryItems.filter((_, idx) => idx !== itemIdx);
-                                      updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
+                                      const currentItems = updated[dayIdx].itineraryItems || [];
+                                      updated[dayIdx] = {
+                                        ...updated[dayIdx],
+                                        itineraryItems: [...currentItems, { time: '09:00', title: '', image: '', description: '' }]
+                                      };
                                       setFormData({ ...formData, multiDayItinerary: updated });
                                     }}
-                                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                                    title="Remove event"
+                                    className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                                   >
-                                    <X className="h-4 w-4" />
+                                    <Plus className="h-3.5 w-3.5" /> Add Schedule Event
                                   </button>
                                 </div>
 
-                                <div className="grid md:grid-cols-3 gap-3">
-                                  <div className="md:col-span-2">
-                                    <textarea
-                                      placeholder="Event description..."
-                                      rows={2}
-                                      value={item.description}
-                                      onChange={e => {
-                                        const updated = [...(formData.multiDayItinerary || [])];
-                                        const items = [...updated[dayIdx].itineraryItems];
-                                        items[itemIdx] = { ...items[itemIdx], description: e.target.value };
-                                        updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
-                                        setFormData({ ...formData, multiDayItinerary: updated });
-                                      }}
-                                      className="w-full text-xs bg-white border border-gray-200 rounded-lg p-2 text-gray-700"
-                                    />
-                                  </div>
-                                  <div>
-                                    {item.image ? (
-                                      <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 group/img">
-                                        <img src={item.image} className="w-full h-full object-cover" />
+                                <div className="space-y-3 pl-3 border-l-2 border-blue-100">
+                                  {(day.itineraryItems || []).map((item: any, itemIdx: number) => (
+                                    <div key={itemIdx} className="bg-gray-50/70 p-4 rounded-xl border border-gray-200/70 space-y-3 relative group">
+                                      <div className="flex items-center gap-3">
+                                        <input
+                                          type="text"
+                                          placeholder="08:00"
+                                          value={item.time || ''}
+                                          onChange={e => {
+                                            const updated = [...(formData.multiDayItinerary || [])];
+                                            const items = [...updated[dayIdx].itineraryItems];
+                                            items[itemIdx] = { ...items[itemIdx], time: e.target.value };
+                                            updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
+                                            setFormData({ ...formData, multiDayItinerary: updated });
+                                          }}
+                                          className="w-24 text-xs font-black bg-white border border-gray-200 rounded-lg p-2 text-blue-700 text-center"
+                                        />
+                                        <input
+                                          type="text"
+                                          placeholder="Event Title (e.g. Pick up at airport)"
+                                          value={item.title || ''}
+                                          onChange={e => {
+                                            const updated = [...(formData.multiDayItinerary || [])];
+                                            const items = [...updated[dayIdx].itineraryItems];
+                                            items[itemIdx] = { ...items[itemIdx], title: e.target.value };
+                                            updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
+                                            setFormData({ ...formData, multiDayItinerary: updated });
+                                          }}
+                                          className="flex-1 text-xs font-bold bg-white border border-gray-200 rounded-lg p-2 text-gray-900"
+                                        />
                                         <button
                                           type="button"
                                           onClick={() => {
                                             const updated = [...(formData.multiDayItinerary || [])];
-                                            const items = [...updated[dayIdx].itineraryItems];
-                                            items[itemIdx] = { ...items[itemIdx], image: '' };
+                                            const items = updated[dayIdx].itineraryItems.filter((_: any, idx: number) => idx !== itemIdx);
                                             updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
                                             setFormData({ ...formData, multiDayItinerary: updated });
                                           }}
-                                          className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity"
+                                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                                          title="Remove event"
                                         >
-                                          <Trash2 className="h-3 w-3" />
+                                          <X className="h-4 w-4" />
                                         </button>
                                       </div>
-                                    ) : (
-                                      <div className="flex gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            openMediaGallery((urls: string[]) => {
-                                              if (urls[0]) {
-                                                setFormData((prev: any) => {
-                                                  const updated = [...(prev.multiDayItinerary || [])];
-                                                  if (updated[dayIdx]) {
-                                                    const items = [...(updated[dayIdx].itineraryItems || [])];
-                                                    if (items[itemIdx]) {
-                                                      items[itemIdx] = { ...items[itemIdx], image: urls[0] };
-                                                      updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
+
+                                      <div className="grid md:grid-cols-3 gap-3">
+                                        <div className="md:col-span-2">
+                                          <textarea
+                                            placeholder="Event description..."
+                                            rows={2}
+                                            value={item.description || ''}
+                                            onChange={e => {
+                                              const updated = [...(formData.multiDayItinerary || [])];
+                                              const items = [...updated[dayIdx].itineraryItems];
+                                              items[itemIdx] = { ...items[itemIdx], description: e.target.value };
+                                              updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
+                                              setFormData({ ...formData, multiDayItinerary: updated });
+                                            }}
+                                            className="w-full text-xs bg-white border border-gray-200 rounded-lg p-2 text-gray-700"
+                                          />
+                                        </div>
+                                        <div>
+                                          {item.image ? (
+                                            <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 group/img">
+                                              <img src={item.image} className="w-full h-full object-cover" />
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updated = [...(formData.multiDayItinerary || [])];
+                                                  const items = [...updated[dayIdx].itineraryItems];
+                                                  items[itemIdx] = { ...items[itemIdx], image: '' };
+                                                  updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
+                                                  setFormData({ ...formData, multiDayItinerary: updated });
+                                                }}
+                                                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity cursor-pointer"
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <div className="flex gap-2">
+                                              <div className="relative flex-1">
+                                                <button
+                                                  type="button"
+                                                  className="w-full py-2 px-2.5 bg-white border border-gray-200 hover:border-blue-300 text-gray-700 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 shadow-2xs"
+                                                >
+                                                  <Upload className="h-3.5 w-3.5 text-gray-500" />
+                                                  Upload
+                                                </button>
+                                                <input
+                                                  type="file"
+                                                  onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                      try {
+                                                        const url = await uploadImage(file);
+                                                        setFormData((prev: any) => {
+                                                          const updated = [...(prev.multiDayItinerary || [])];
+                                                          if (updated[dayIdx]) {
+                                                            const items = [...(updated[dayIdx].itineraryItems || [])];
+                                                            if (items[itemIdx]) {
+                                                              items[itemIdx] = { ...items[itemIdx], image: url };
+                                                              updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
+                                                            }
+                                                          }
+                                                          return { ...prev, multiDayItinerary: updated };
+                                                        });
+                                                      } catch (err) {
+                                                        console.error("Failed to upload schedule image", err);
+                                                      }
                                                     }
-                                                  }
-                                                  return { ...prev, multiDayItinerary: updated };
-                                                });
-                                              }
-                                            }, false);
-                                          }}
-                                          className="flex-1 py-2 px-3 bg-white border border-gray-200 hover:border-blue-300 text-gray-700 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                                        >
-                                          <ImageIcon className="h-3.5 w-3.5 text-blue-600" />
-                                          Image
-                                        </button>
+                                                  }}
+                                                  className="absolute inset-0 opacity-0 cursor-pointer"
+                                                />
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  openMediaGallery((urls: string[]) => {
+                                                    if (urls[0]) {
+                                                      setFormData((prev: any) => {
+                                                        const updated = [...(prev.multiDayItinerary || [])];
+                                                        if (updated[dayIdx]) {
+                                                          const items = [...(updated[dayIdx].itineraryItems || [])];
+                                                          if (items[itemIdx]) {
+                                                            items[itemIdx] = { ...items[itemIdx], image: urls[0] };
+                                                            updated[dayIdx] = { ...updated[dayIdx], itineraryItems: items };
+                                                          }
+                                                        }
+                                                        return { ...prev, multiDayItinerary: updated };
+                                                      });
+                                                    }
+                                                  }, false);
+                                                }}
+                                                className="flex-1 py-2 px-2.5 bg-blue-50 border border-blue-100 hover:bg-blue-100 text-blue-600 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                                              >
+                                                <ImageIcon className="h-3.5 w-3.5" />
+                                                Gallery
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
-                                    )}
-                                  </div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
-                            ))}
-                          </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {(formData.multiDayItinerary || []).length === 0 && (
                       <div className="text-center py-12 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl">

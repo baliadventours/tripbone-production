@@ -24,9 +24,11 @@ export default function TourInfo({ tour }: TourInfoProps) {
   };
 
   const expandAllDays = () => {
-    if (!tour.multiDayItinerary) return;
+    const items = tour.tourDurationType === 'multi_day'
+      ? (tour.multiDayItinerary || [])
+      : (tour.itinerary || []);
     const allExpanded: Record<number, boolean> = {};
-    tour.multiDayItinerary.forEach((_, idx) => {
+    items.forEach((_, idx) => {
       allExpanded[idx] = true;
     });
     setExpandedDays(allExpanded);
@@ -346,7 +348,8 @@ export default function TourInfo({ tour }: TourInfoProps) {
             </p>
           </div>
 
-          {tour.tourDurationType === 'multi_day' && tour.multiDayItinerary && tour.multiDayItinerary.length > 0 && (
+          {((tour.tourDurationType === 'multi_day' && (tour.multiDayItinerary?.length || 0) > 0) ||
+            (tour.tourDurationType !== 'multi_day' && (tour.itinerary?.length || 0) > 0)) && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -394,7 +397,7 @@ export default function TourInfo({ tour }: TourInfoProps) {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                Day {day.dayNumber}: {day.title.split(' ')[0]}
+                Day {day.dayNumber || idx + 1}: {(day.title || '').split(' ')[0]}
               </button>
             ))}
           </div>
@@ -404,7 +407,7 @@ export default function TourInfo({ tour }: TourInfoProps) {
           <div className="space-y-6">
             {tour.multiDayItinerary.map((day, dIdx) => {
               if (activeDayFilter !== 'all' && activeDayFilter !== dIdx) return null;
-              const isExpanded = expandedDays[dIdx] ?? true;
+              const isExpanded = Boolean(expandedDays[dIdx]);
 
               return (
                 <div 
@@ -419,7 +422,7 @@ export default function TourInfo({ tour }: TourInfoProps) {
                   >
                     <div className="flex items-center gap-3.5">
                       <span className="px-3 py-1.5 bg-primary text-white font-black rounded-xl text-xs tracking-wider shadow-sm shrink-0">
-                        DAY {day.dayNumber}
+                        DAY {day.dayNumber || dIdx + 1}
                       </span>
                       <div>
                         <h3 className="text-lg md:text-xl font-extrabold text-gray-900 leading-tight">{day.title}</h3>
@@ -499,51 +502,77 @@ export default function TourInfo({ tour }: TourInfoProps) {
             })}
           </div>
         ) : (
-          <div className="space-y-8 pl-2">
-            {(tour.itinerary || []).map((item, idx) => (
-              <div key={idx} className="relative group">
-                {idx !== (tour.itinerary || []).length - 1 && (
-                  <div className="absolute left-[19px] top-10 bottom-[-32px] w-0.5 bg-orange-200 group-hover:bg-primary transition-colors" />
-                )}
-                <div className="flex gap-5">
-                  <div className="relative z-10">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary font-black text-white text-sm shadow-md shadow-orange-200 ring-4 ring-white group-hover:scale-110 transition-transform">
-                      {idx + 1}
-                    </div>
-                  </div>
-                  <div className="flex-1 space-y-3 bg-white p-5 rounded-2xl border border-gray-100 shadow-2xs hover:shadow-sm transition-all">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <h3 className="text-base md:text-lg font-black text-gray-900 group-hover:text-primary transition-colors leading-snug">
-                        {item.title}
-                      </h3>
-                      {item.pickup && (
-                        <div className="flex items-center gap-1.5 text-primary font-bold text-xs bg-orange-50 px-2.5 py-1 rounded-full border border-orange-100 shrink-0 w-fit">
-                          <MapPin className="h-3.5 w-3.5" />
-                          {typeof item.pickup === 'object' ? (item.pickup as any).description : item.pickup}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {(item.image || (typeof item.pickup === 'object' && (item.pickup as any)?.image)) && (
-                      <div className="w-full max-w-lg aspect-video bg-gray-50 overflow-hidden rounded-xl border border-gray-100">
-                        <SmartImage 
-                          src={item.image || (typeof item.pickup === 'object' ? (item.pickup as any)?.image : '')} 
-                          alt={item.title} 
-                          className="group-hover:scale-105 transition-transform duration-300" 
-                          aspectRatio="auto"
-                        />
+          <div className="space-y-4 pl-2">
+            {(tour.itinerary || []).map((item, idx) => {
+              const isExpanded = Boolean(expandedDays[idx]);
+              const itemImage = item.image || (typeof item.pickup === 'object' ? (item.pickup as any)?.image : '');
+              const pickupText = typeof item.pickup === 'object' ? (item.pickup as any)?.description : item.pickup;
+
+              return (
+                <div key={idx} className="relative group">
+                  {idx !== (tour.itinerary || []).length - 1 && (
+                    <div className="absolute left-[19px] top-10 bottom-[-16px] w-0.5 bg-orange-200 group-hover:bg-primary transition-colors" />
+                  )}
+                  <div className="flex gap-4 sm:gap-5">
+                    <div className="relative z-10 pt-1.5">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary font-black text-white text-sm shadow-md shadow-orange-200 ring-4 ring-white group-hover:scale-105 transition-transform">
+                        {idx + 1}
                       </div>
-                    )}
-                    
-                    {item.description && (
-                      <p className="text-xs md:text-sm leading-relaxed text-gray-600 font-medium">
-                        {item.description}
-                      </p>
-                    )}
+                    </div>
+                    <div className="flex-1 min-w-0 bg-white rounded-2xl border border-gray-200/80 shadow-2xs hover:border-orange-200 transition-all overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => toggleDay(idx)}
+                        className="w-full p-4 sm:p-5 text-left flex items-center justify-between gap-4 cursor-pointer hover:bg-orange-50/20 transition-colors"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 flex-1">
+                          <h3 className="text-base md:text-lg font-black text-gray-900 group-hover:text-primary transition-colors leading-snug">
+                            {item.title || `Stop ${idx + 1}`}
+                          </h3>
+                          {pickupText && (
+                            <div className="flex items-center gap-1.5 text-primary font-bold text-xs bg-orange-50 px-2.5 py-1 rounded-full border border-orange-100 shrink-0 w-fit">
+                              <MapPin className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate max-w-[220px]">{pickupText}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="h-8 w-8 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-500 shrink-0 group-hover:border-orange-200 group-hover:text-primary transition-colors">
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      </button>
+
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (itemImage || item.description) && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="px-4 sm:px-5 pb-5 pt-3 space-y-3.5 border-t border-gray-100 bg-gray-50/20"
+                          >
+                            {itemImage && (
+                              <div className="w-full max-w-lg aspect-video bg-gray-50 overflow-hidden rounded-xl border border-gray-100">
+                                <SmartImage 
+                                  src={itemImage} 
+                                  alt={item.title} 
+                                  className="group-hover:scale-105 transition-transform duration-300" 
+                                  aspectRatio="auto"
+                                />
+                              </div>
+                            )}
+                            {item.description && (
+                              <p className="text-xs md:text-sm leading-relaxed text-gray-600 font-medium">
+                                {item.description}
+                              </p>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

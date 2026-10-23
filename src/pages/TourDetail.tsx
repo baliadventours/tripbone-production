@@ -766,12 +766,36 @@ export default function TourDetail() {
                     : 'Step-by-step experience timeline'}
                 </p>
               </div>
+              {((tour.tourDurationType === 'multi_day' && (tour.multiDayItinerary?.length || 0) > 0) ||
+                (tour.tourDurationType !== 'multi_day' && (tour.itinerary?.length || 0) > 0)) && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const list = tour.tourDurationType === 'multi_day' ? (tour.multiDayItinerary || []) : (tour.itinerary || []);
+                      const allExp: Record<number, boolean> = {};
+                      list.forEach((_, idx) => { allExp[idx] = true; });
+                      setExpandedMobileDays(allExp);
+                    }}
+                    className="px-2.5 py-1 bg-orange-50 hover:bg-orange-100 text-primary font-bold text-[10px] rounded-lg transition-colors border border-orange-100 cursor-pointer"
+                  >
+                    Expand All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedMobileDays({})}
+                    className="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold text-[10px] rounded-lg transition-colors border border-gray-200 cursor-pointer"
+                  >
+                    Collapse All
+                  </button>
+                </div>
+              )}
             </div>
 
             {tour.tourDurationType === 'multi_day' && tour.multiDayItinerary && tour.multiDayItinerary.length > 0 ? (
               <div className="space-y-4">
                 {tour.multiDayItinerary.map((day, dIdx) => {
-                  const isExpanded = expandedMobileDays[dIdx] ?? true;
+                  const isExpanded = Boolean(expandedMobileDays[dIdx]);
                   return (
                     <div 
                       key={dIdx} 
@@ -785,7 +809,7 @@ export default function TourDetail() {
                       >
                         <div className="flex items-center gap-3">
                           <span className="px-2.5 py-1 bg-primary text-white font-black rounded-lg text-[10px] tracking-wider shrink-0 shadow-xs">
-                            DAY {day.dayNumber}
+                            DAY {day.dayNumber || dIdx + 1}
                           </span>
                           <div>
                             <h3 className="text-sm font-extrabold text-gray-900 leading-tight">{day.title}</h3>
@@ -859,47 +883,72 @@ export default function TourDetail() {
                 })}
               </div>
             ) : (
-              <div className="space-y-8 pl-1">
-                {(tour.itinerary || []).map((step, i) => (
-                  <div key={i} className="relative group">
-                    {i !== (tour.itinerary || []).length - 1 && (
-                      <div className="absolute left-[15px] top-8 bottom-[-32px] w-0.5 bg-orange-200" />
-                    )}
-                    <div className="flex gap-4">
-                      <div className="relative z-10">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary font-black text-white text-[10px] shadow-md shadow-orange-200 ring-4 ring-white">
-                          {i + 1}
+              <div className="space-y-4 pl-1">
+                {(tour.itinerary || []).map((step, i) => {
+                  const isExpanded = Boolean(expandedMobileDays[i]);
+                  const stepImg = step.image || (typeof step.pickup === 'object' ? (step.pickup as any)?.image : '');
+                  const pickupText = typeof step.pickup === 'object' ? (step.pickup as any)?.description : step.pickup;
+
+                  return (
+                    <div key={i} className="relative group">
+                      {i !== (tour.itinerary || []).length - 1 && (
+                        <div className="absolute left-[15px] top-8 bottom-[-16px] w-0.5 bg-orange-200" />
+                      )}
+                      <div className="flex gap-3.5">
+                        <div className="relative z-10 pt-1">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary font-black text-white text-[10px] shadow-md shadow-orange-200 ring-4 ring-white">
+                            {i + 1}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex-1 space-y-3 bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
-                        <div className="flex flex-col gap-1">
-                          <h3 className="text-base font-black text-gray-900 leading-tight">{step.title}</h3>
-                          {step.pickup && (
-                            <div className="flex items-center gap-1.5 text-primary font-bold text-[10px] bg-orange-50 w-fit px-2.5 py-0.5 rounded-full border border-orange-100">
-                              <MapPin className="h-3 w-3" />
-                              {typeof step.pickup === 'object' ? (step.pickup as any).description : step.pickup}
+                        <div className="flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-2xs overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedMobileDays(prev => ({ ...prev, [i]: !prev[i] }))}
+                            className="w-full p-4 text-left flex items-center justify-between gap-3 cursor-pointer hover:bg-orange-50/20 transition-colors"
+                          >
+                            <div className="flex flex-col gap-1 min-w-0">
+                              <h3 className="text-sm font-black text-gray-900 leading-tight">{step.title || `Stop ${i + 1}`}</h3>
+                              {pickupText && (
+                                <div className="flex items-center gap-1.5 text-primary font-bold text-[10px] bg-orange-50 w-fit px-2.5 py-0.5 rounded-full border border-orange-100">
+                                  <MapPin className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{pickupText}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        
-                        <div className="space-y-3">
-                          {(step.image || (typeof step.pickup === 'object' && (step.pickup as any)?.image)) && (
-                            <div className="w-full aspect-[4/3] bg-gray-50 overflow-hidden rounded-xl border border-gray-100">
-                              <SmartImage 
-                                src={step.image || (typeof step.pickup === 'object' ? (step.pickup as any)?.image : '')} 
-                                alt={step.title} 
-                                aspectRatio="auto"
-                              />
+                            <div className="h-7 w-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-500 shrink-0">
+                              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", isExpanded && "rotate-180")} />
                             </div>
-                          )}
-                          {step.description && (
-                            <p className="text-xs leading-relaxed text-gray-600 font-medium">{step.description}</p>
-                          )}
+                          </button>
+
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (stepImg || step.description) && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="px-4 pb-4 pt-2 space-y-3 border-t border-gray-100"
+                              >
+                                {stepImg && (
+                                  <div className="w-full aspect-[4/3] bg-gray-50 overflow-hidden rounded-xl border border-gray-100">
+                                    <SmartImage 
+                                      src={stepImg} 
+                                      alt={step.title} 
+                                      aspectRatio="auto"
+                                    />
+                                  </div>
+                                )}
+                                {step.description && (
+                                  <p className="text-xs leading-relaxed text-gray-600 font-medium">{step.description}</p>
+                                )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -1118,12 +1167,12 @@ export default function TourDetail() {
             })}
           </div>
 
-          <div className="mt-12 flex flex-col lg:flex-row gap-12 items-start">
-            <div className="flex-1 lg:w-2/3 space-y-16">
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-10 xl:gap-12 items-start w-full">
+            <div className="md:col-span-7 lg:col-span-8 min-w-0 w-full space-y-16">
               <TourInfo tour={tour} />
               <ReviewSection tourId={tour.id} />
             </div>
-            <aside className="hidden md:block w-full md:w-[360px] lg:w-[390px] xl:w-[420px] shrink-0 md:sticky md:top-24 max-h-[calc(100vh-100px)] overflow-y-auto pr-1 no-scrollbar self-start z-20">
+            <aside className="hidden md:block md:col-span-5 lg:col-span-4 w-full min-w-0 md:sticky md:top-24 max-h-[calc(100vh-100px)] overflow-y-auto no-scrollbar self-start z-20">
               <BookingForm tour={tour} />
             </aside>
           </div>
