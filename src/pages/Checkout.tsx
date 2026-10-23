@@ -57,6 +57,7 @@ import {
   AlertCircle,
   Copy,
   Globe,
+  ExternalLink,
 } from "lucide-react";
 import axios from "axios";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
@@ -1847,6 +1848,56 @@ const toggleAddOn = (addon: AddOn) => {
                               </div>
                             )}
 
+                            {(() => {
+                              const rawMp = (pkg.meetingPoint || '').trim();
+                              const mpUrlMatch = rawMp.match(/(https?:\/\/[^\s]+)/);
+                              const mpUrl = mpUrlMatch ? mpUrlMatch[0].trim() : '';
+                              const mpTitle = rawMp.replace(/(https?:\/\/[^\s]+)/g, '').replace(/^[\s\-,.:;]+|[\s\-,.:;]+$/g, '').trim();
+                              const isPlaceholderMp = /^your\s+hotel$/i.test(mpTitle) && !mpUrl;
+                              const hasValidMeetingPoint = Boolean(!isPlaceholderMp && (mpTitle || mpUrl));
+                              const effectiveMpUrl = mpUrl || (mpTitle ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mpTitle)}` : '');
+                              const cleanPickupAreas = (pkg.pickupAreas || '').trim();
+                              const hasValidPickup = Boolean(cleanPickupAreas);
+
+                              if (!hasValidMeetingPoint && !hasValidPickup) return null;
+
+                              return (
+                                <div className="bg-white p-3.5 rounded-xl border border-neutral-200 space-y-2.5 text-left text-xs">
+                                  {hasValidMeetingPoint && (
+                                    <div className="flex items-start gap-2">
+                                      <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                      <div className="text-neutral-700 leading-relaxed">
+                                        <span className="font-bold text-neutral-900">Meeting point: </span>
+                                        <a
+                                          href={effectiveMpUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                                        >
+                                          <span>{mpTitle || 'View on Google Maps'}</span>
+                                          <ExternalLink className="h-3 w-3 shrink-0" />
+                                        </a>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {hasValidPickup && (
+                                    <div className="flex items-start gap-2">
+                                      <Car className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                      <div className="text-neutral-700 leading-relaxed space-y-1">
+                                        <div>
+                                          <span className="font-bold text-neutral-900">Pick up: </span>
+                                          <span className="font-semibold text-neutral-800">{cleanPickupAreas}</span>
+                                        </div>
+                                        <p className="text-[11px] text-neutral-500 font-medium">
+                                          Please enter your hotel name or villa pickup address in the Transportation section below.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+
                             {/* Free Cancellation Guarantee */}
                             <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200/60 p-2.5 rounded-xl text-emerald-800 text-[11px] font-medium">
                               <Check className="h-4 w-4 text-emerald-600 shrink-0" />
@@ -2642,6 +2693,56 @@ const toggleAddOn = (addon: AddOn) => {
                                     </div>
                                   )}
 
+                                  {(() => {
+                                    const rawMp = (pkg.meetingPoint || '').trim();
+                                    const mpUrlMatch = rawMp.match(/(https?:\/\/[^\s]+)/);
+                                    const mpUrl = mpUrlMatch ? mpUrlMatch[0].trim() : '';
+                                    const mpTitle = rawMp.replace(/(https?:\/\/[^\s]+)/g, '').replace(/^[\s\-,.:;]+|[\s\-,.:;]+$/g, '').trim();
+                                    const isPlaceholderMp = /^your\s+hotel$/i.test(mpTitle) && !mpUrl;
+                                    const hasValidMeetingPoint = Boolean(!isPlaceholderMp && (mpTitle || mpUrl));
+                                    const effectiveMpUrl = mpUrl || (mpTitle ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mpTitle)}` : '');
+                                    const cleanPickupAreas = (pkg.pickupAreas || '').trim();
+                                    const hasValidPickup = Boolean(cleanPickupAreas);
+
+                                    if (!hasValidMeetingPoint && !hasValidPickup) return null;
+
+                                    return (
+                                      <div className="bg-white p-3.5 rounded-xl border border-neutral-200 space-y-2.5 text-left text-xs mb-4">
+                                        {hasValidMeetingPoint && (
+                                          <div className="flex items-start gap-2.5">
+                                            <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                            <div className="text-neutral-700 leading-relaxed">
+                                              <span className="font-bold text-neutral-900">Meeting point: </span>
+                                              <a
+                                                href={effectiveMpUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                                              >
+                                                <span>{mpTitle || 'View on Google Maps'}</span>
+                                                <ExternalLink className="h-3 w-3 shrink-0" />
+                                              </a>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {hasValidPickup && (
+                                          <div className="flex items-start gap-2.5">
+                                            <Car className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                            <div className="text-neutral-700 leading-relaxed space-y-1">
+                                              <div>
+                                                <span className="font-bold text-neutral-900">Pick up: </span>
+                                                <span className="font-semibold text-neutral-800">{cleanPickupAreas}</span>
+                                              </div>
+                                              <p className="text-[11px] text-neutral-500 font-medium">
+                                                Please enter your hotel name or villa pickup address in the Transportation section below.
+                                              </p>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+
                                   {/* Trust guarantee highlights matching Airbnb clean style */}
                                   <div className="bg-emerald-50/60 border border-emerald-200/60 rounded-xl p-3.5 space-y-2 text-left mb-5">
                                     <div className="flex items-start gap-2.5 text-xs font-medium text-emerald-900">
@@ -2943,8 +3044,13 @@ const toggleAddOn = (addon: AddOn) => {
                       {availableTransports.some(t => t.type === 'meet') && (() => {
                         const isSelected = selectedTransportType === 'meet';
                         const isExpanded = expandedTransport === 'meet';
-                        const activeMpText = selectedPackage?.meetingPoint || tour?.meetingPoint;
-                        const mp = parseMeetingPoint(activeMpText, selectedPackage?.name || tour?.title);
+                        const activeMpText = (selectedPackage?.meetingPoint || tour?.meetingPoint || '').trim();
+                        const mpUrlMatch = activeMpText.match(/(https?:\/\/[^\s]+)/);
+                        const mpUrl = mpUrlMatch ? mpUrlMatch[0].trim() : '';
+                        const mpTitle = activeMpText.replace(/(https?:\/\/[^\s]+)/g, '').replace(/^[\s\-,.:;]+|[\s\-,.:;]+$/g, '').trim();
+                        const isPlaceholderMp = /^your\s+hotel$/i.test(mpTitle) && !mpUrl;
+                        const hasValidMeetingPoint = Boolean(!isPlaceholderMp && (mpTitle || mpUrl));
+                        const effectiveMpUrl = mpUrl || (mpTitle ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mpTitle)}` : '');
 
                         return (
                           <div
@@ -3019,23 +3125,23 @@ const toggleAddOn = (addon: AddOn) => {
                                     <p className="text-xs text-neutral-600 font-normal leading-relaxed">
                                       Come directly to our operation basecamp or meeting point on your own. No pickup service is included.
                                     </p>
-                                    <div className="bg-white border border-neutral-200 rounded-xl p-4 space-y-2">
-                                      <span className="text-[10px] font-bold text-neutral-700 uppercase tracking-wider block">Meeting Point Location:</span>
-                                      <p className="text-sm font-bold text-neutral-900">{mp.venue}</p>
-                                      {mp.address && mp.address !== mp.venue && (
-                                        <p className="text-xs text-neutral-600 font-medium">{mp.address}</p>
-                                      )}
-                                      {mp.url && (
-                                        <a
-                                          href={mp.url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-xs font-bold text-neutral-900 underline hover:text-neutral-600 block pt-1"
-                                        >
-                                          Open Google Maps Location →
-                                        </a>
-                                      )}
-                                    </div>
+                                    {hasValidMeetingPoint && (
+                                      <div className="bg-white border border-neutral-200 rounded-xl p-4 flex items-start gap-2.5 text-xs">
+                                        <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                        <div className="leading-relaxed">
+                                          <span className="font-bold text-neutral-900">Meeting point: </span>
+                                          <a
+                                            href={effectiveMpUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                                          >
+                                            <span>{mpTitle || 'View on Google Maps'}</span>
+                                            <ExternalLink className="h-3 w-3 shrink-0" />
+                                          </a>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 </motion.div>
                               )}
@@ -3127,10 +3233,18 @@ const toggleAddOn = (addon: AddOn) => {
                                     <p className="text-xs text-neutral-600 font-normal leading-relaxed">
                                       Pickup & drop-off shared with other travelers going to the same tour. Pickup schedule will be confirmed based on your hotel area.
                                     </p>
-                                    {(selectedPackage?.pickupAreas || tour?.pickupAreas) && (
-                                      <div className="bg-neutral-100 border border-neutral-200 rounded-xl p-3.5 text-xs text-neutral-700 font-medium">
-                                        <span className="text-[10px] font-bold text-neutral-900 uppercase tracking-wider block mb-1">Served Areas:</span>
-                                        {selectedPackage?.pickupAreas || tour?.pickupAreas}
+                                    {Boolean((selectedPackage?.pickupAreas || tour?.pickupAreas || '').trim()) && (
+                                      <div className="bg-white border border-neutral-200 rounded-xl p-3.5 text-xs text-neutral-700 flex items-start gap-2.5">
+                                        <Car className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                        <div className="space-y-1 leading-relaxed">
+                                          <div>
+                                            <span className="font-bold text-neutral-900">Pick up: </span>
+                                            <span className="font-semibold text-neutral-800">{(selectedPackage?.pickupAreas || tour?.pickupAreas || '').trim()}</span>
+                                          </div>
+                                          <p className="text-[11px] text-neutral-500 font-medium">
+                                            Please enter your hotel name or villa pickup address in the box below so our driver can coordinate your transfer.
+                                          </p>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -3231,10 +3345,18 @@ const toggleAddOn = (addon: AddOn) => {
                                       Air-conditioned vehicle with professional driver exclusively for your group. Select your preferred vehicle below:
                                     </p>
 
-                                    {(selectedPackage?.pickupAreas || tour?.pickupAreas) && (
-                                      <div className="bg-neutral-100 border border-neutral-200 rounded-xl p-3 text-xs text-neutral-700 font-medium mb-3">
-                                        <span className="text-[10px] font-bold text-neutral-900 uppercase tracking-wider block mb-0.5">Served Areas:</span>
-                                        {selectedPackage?.pickupAreas || tour?.pickupAreas}
+                                    {Boolean((selectedPackage?.pickupAreas || tour?.pickupAreas || '').trim()) && (
+                                      <div className="bg-white border border-neutral-200 rounded-xl p-3.5 text-xs text-neutral-700 flex items-start gap-2.5 mb-3">
+                                        <Car className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                        <div className="space-y-1 leading-relaxed">
+                                          <div>
+                                            <span className="font-bold text-neutral-900">Pick up: </span>
+                                            <span className="font-semibold text-neutral-800">{(selectedPackage?.pickupAreas || tour?.pickupAreas || '').trim()}</span>
+                                          </div>
+                                          <p className="text-[11px] text-neutral-500 font-medium">
+                                            Please enter your hotel name or villa pickup address in the box below so our driver can coordinate your transfer.
+                                          </p>
+                                        </div>
                                       </div>
                                     )}
 

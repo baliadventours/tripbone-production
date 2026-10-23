@@ -1279,7 +1279,9 @@ export const TourEditorForm: React.FC<TourEditorFormProps> = ({
                                     const urlRegex = /(https?:\/\/[^\s]+)/g;
                                     const match = rawAddress.match(urlRegex);
                                     const currentLink = match ? match[0] : "";
-                                    const currentTitle = rawAddress.replace(urlRegex, "").replace(/^[\s\-,.:;]+|[\s\-,.:;]+$/g, "").trim();
+                                    const currentTitle = rawAddress
+                                      .replace(/\r?\n?https?:\/\/[^\s]+/g, "")
+                                      .replace(/^\r?\n+|\r?\n+$/g, "");
 
                                     return (
                                       <div className="space-y-4">
@@ -1296,9 +1298,12 @@ export const TourEditorForm: React.FC<TourEditorFormProps> = ({
                                               type="text"
                                               placeholder="e.g. Sanur Beach Harbor Entrance"
                                               value={currentTitle}
+                                              onKeyDown={e => e.stopPropagation()}
                                               onChange={e => {
                                                 const newTitle = e.target.value;
-                                                const newMeetingPoint = currentLink ? `${newTitle}\n${currentLink}` : newTitle;
+                                                const newMeetingPoint = currentLink
+                                                  ? (newTitle ? `${newTitle}\n${currentLink}` : currentLink)
+                                                  : newTitle;
                                                 updateArrayItem('packages', pIdx, { ...pkg, meetingPoint: newMeetingPoint });
                                               }}
                                               className="w-full rounded-xl border-2 border-gray-200 p-3 text-xs font-bold text-gray-900 focus:border-primary focus:bg-white outline-none transition-all bg-white"
@@ -1310,9 +1315,12 @@ export const TourEditorForm: React.FC<TourEditorFormProps> = ({
                                               type="text"
                                               placeholder="e.g. https://maps.app.goo.gl/..."
                                               value={currentLink}
+                                              onKeyDown={e => e.stopPropagation()}
                                               onChange={e => {
-                                                const newLink = e.target.value;
-                                                const newMeetingPoint = newLink ? `${currentTitle}\n${newLink}` : currentTitle;
+                                                const newLink = e.target.value.trim();
+                                                const newMeetingPoint = newLink
+                                                  ? (currentTitle ? `${currentTitle}\n${newLink}` : newLink)
+                                                  : currentTitle;
                                                 updateArrayItem('packages', pIdx, { ...pkg, meetingPoint: newMeetingPoint });
                                               }}
                                               className="w-full rounded-xl border-2 border-gray-200 p-3 text-xs font-bold text-gray-900 focus:border-primary focus:bg-white outline-none transition-all bg-white"
@@ -2592,7 +2600,9 @@ export const TourEditorForm: React.FC<TourEditorFormProps> = ({
                      const urlRegex = /(https?:\/\/[^\s]+)/g;
                      const match = rawAddress.match(urlRegex);
                      const currentLink = match ? match[0] : "";
-                     const currentTitle = rawAddress.replace(urlRegex, "").replace(/^[\s\-,.:;]+|[\s\-,.:;]+$/g, "").trim();
+                     const currentTitle = rawAddress
+                       .replace(/\r?\n?https?:\/\/[^\s]+/g, "")
+                       .replace(/^\r?\n+|\r?\n+$/g, "");
 
                      return (
                        <div className="space-y-4 bg-white p-6 rounded-[10px] border border-gray-100 shadow-sm">
@@ -2607,11 +2617,14 @@ export const TourEditorForm: React.FC<TourEditorFormProps> = ({
                              <input 
                                placeholder="e.g. Tripbone Basecamp"
                                value={currentTitle}
+                               onKeyDown={e => e.stopPropagation()}
                                onChange={e => {
                                  const newTitle = e.target.value;
                                  setFormData({
                                    ...formData,
-                                   meetingPoint: currentLink ? `${newTitle}\n${currentLink}` : newTitle
+                                   meetingPoint: currentLink
+                                     ? (newTitle ? `${newTitle}\n${currentLink}` : currentLink)
+                                     : newTitle
                                  });
                                }}
                                className="w-full rounded-[10px] border-2 border-gray-100 p-4 focus:border-primary focus:outline-none transition-all font-bold text-gray-800"
@@ -2623,11 +2636,14 @@ export const TourEditorForm: React.FC<TourEditorFormProps> = ({
                              <input 
                                placeholder="e.g. https://maps.app.goo.gl/nM2C85Qdv4BQ4BgE6"
                                value={currentLink}
+                               onKeyDown={e => e.stopPropagation()}
                                onChange={e => {
-                                 const newLink = e.target.value;
+                                 const newLink = e.target.value.trim();
                                  setFormData({
                                    ...formData,
-                                   meetingPoint: newLink ? `${currentTitle}\n${newLink}` : currentTitle
+                                   meetingPoint: newLink
+                                     ? (currentTitle ? `${currentTitle}\n${newLink}` : newLink)
+                                     : currentTitle
                                  });
                                }}
                                className="w-full rounded-[10px] border-2 border-gray-100 p-4 focus:border-primary focus:outline-none transition-all font-bold text-gray-800"

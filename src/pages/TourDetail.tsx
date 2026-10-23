@@ -21,7 +21,7 @@ import {
   Share2, MapPin, Clock, Star, 
   ChevronRight, Calendar, Users, 
   Info, Languages, MessageCircle, ShieldCheck, LucideIcon, ArrowLeft, Globe, CheckCircle2, ChevronDown, ChevronUp, Check, X,
-  Hotel, Bed, UserCheck, Compass
+  Hotel, Bed, UserCheck, Compass, Car, ExternalLink
 } from 'lucide-react';
 import * as Icons from 'lucide-react';
 import TourGallery from '../components/TourDetails/TourGallery';
@@ -610,6 +610,15 @@ export default function TourDetail() {
                   const pkgExclusions = (pkg.exclusions || []).filter(item => item && item.trim() !== '');
                   const packageDesc = pkg.description || pkg.details;
                   const isExpanded = !!expandedMobilePackages[idx];
+                  const rawMp = (pkg.meetingPoint || '').trim();
+                  const mpUrlMatch = rawMp.match(/(https?:\/\/[^\s]+)/);
+                  const mpUrl = mpUrlMatch ? mpUrlMatch[0].trim() : '';
+                  const mpTitle = rawMp.replace(/(https?:\/\/[^\s]+)/g, '').replace(/^[\s\-,.:;]+|[\s\-,.:;]+$/g, '').trim();
+                  const isPlaceholderMp = /^your\s+hotel$/i.test(mpTitle) && !mpUrl;
+                  const hasValidMeetingPoint = Boolean(!isPlaceholderMp && (mpTitle || mpUrl));
+                  const effectiveMpUrl = mpUrl || (mpTitle ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mpTitle)}` : '');
+                  const cleanPickupAreas = (pkg.pickupAreas || '').trim();
+                  const hasValidPickup = Boolean(cleanPickupAreas);
 
                   return (
                     <div 
@@ -642,28 +651,48 @@ export default function TourDetail() {
 
                       {isExpanded && (
                         <div className="px-3.5 pb-3.5 pt-2.5 border-t border-gray-100 bg-gray-50/30 space-y-3">
+                          {/* Meeting Point / Pickup */}
+                          {(hasValidMeetingPoint || hasValidPickup) && (
+                            <div className="bg-white rounded-xl p-3 border border-gray-100 space-y-2 text-xs">
+                              {hasValidMeetingPoint && (
+                                <div className="flex items-start gap-2">
+                                  <MapPin className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                                  <div className="text-gray-700 leading-relaxed">
+                                    <span className="font-bold text-gray-900">Meeting point: </span>
+                                    <a
+                                      href={effectiveMpUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                                    >
+                                      <span>{mpTitle || 'View on Google Maps'}</span>
+                                      <ExternalLink className="h-3 w-3 shrink-0" />
+                                    </a>
+                                  </div>
+                                </div>
+                              )}
+                              {hasValidPickup && (
+                                <div className="flex items-start gap-2">
+                                  <Car className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                                  <div className="text-gray-700 leading-relaxed space-y-1">
+                                    <div>
+                                      <span className="font-bold text-gray-900">Pick up: </span>
+                                      <span className="font-semibold text-gray-800">{cleanPickupAreas}</span>
+                                    </div>
+                                    <p className="text-[11px] text-gray-500 font-medium">
+                                      Please provide your hotel name or villa pickup address during checkout so our driver can coordinate your transfer.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Package Description (Multi-line paragraph) */}
                           {packageDesc && (
                             <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line font-medium bg-white p-3 rounded-xl border border-gray-100">
                               {packageDesc}
                             </p>
-                          )}
-
-                          {/* Meeting Point / Pickup */}
-                          {(pkg.meetingPoint || pkg.pickupAreas) && (
-                            <div className="flex flex-wrap gap-1.5 text-[11px] text-gray-500">
-                              {pkg.meetingPoint && (
-                                <span className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-100">
-                                  <MapPin className="h-3 w-3 text-primary shrink-0" />
-                                  <span className="truncate max-w-[220px]">{pkg.meetingPoint}</span>
-                                </span>
-                              )}
-                              {pkg.pickupAreas && (
-                                <span className="bg-orange-50/60 text-primary px-2 py-0.5 rounded border border-orange-100">
-                                  Pickup: {pkg.pickupAreas}
-                                </span>
-                              )}
-                            </div>
                           )}
 
                           {/* Tiered Rates */}
