@@ -1,0 +1,1207 @@
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
+import { db, getActiveTenantId } from '../lib/firebase';
+import { 
+  doc, 
+  getDoc, 
+  collection, 
+  query, 
+  limit, 
+  getDocs, 
+  where,
+  rawDoc,
+  rawGetDoc,
+  rawCollection,
+  rawQuery,
+  rawWhere,
+  rawGetDocs
+} from '@/src/lib/firebase';
+import { Tour, UrgencyPoint } from '../types';
+import { 
+  Share2, MapPin, Clock, Star, 
+  ChevronRight, Calendar, Users, 
+  Info, Languages, MessageCircle, ShieldCheck, LucideIcon, ArrowLeft, Globe, CheckCircle2, ChevronDown, ChevronUp, Check, X,
+  Hotel, Bed, UserCheck, Compass
+} from 'lucide-react';
+import * as Icons from 'lucide-react';
+import TourGallery from '../components/TourDetails/TourGallery';
+import TourInfo from '../components/TourDetails/TourInfo';
+import BookingForm from '../components/TourDetails/BookingForm';
+import ReviewSection from '../components/TourDetails/ReviewSection';
+import SmartImage from '../components/SmartImage';
+import Loader from '../components/Loader';
+import FormattedPrice from '../components/FormattedPrice';
+import { cn, formatPrice } from '../lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
+import TourCard from '../components/TourCard';
+import { Helmet } from 'react-helmet-async';
+import PriceSummaryModal from '../components/TourDetails/PriceSummaryModal';
+
+import { useSettings } from '../lib/SettingsContext';
+
+import { generateTourSchema } from '../lib/seoUtils';
+import { trackGAViewItem } from '../lib/googleAnalytics';
+import { trackPostHogTourView } from '../lib/posthog';
+
+export default function TourDetail() {
+  const { slug } = useParams();
+  const { labels, settings } = useSettings();
+  const [tour, setTour] = useState<Tour | null>(() => {
+    if (typeof window !== 'undefined' && (window as any).__PRELOADED_DATA__) {
+      const preloaded = (window as any).__PRELOADED_DATA__;
+      if (preloaded.slug === slug || preloaded.id === slug) {
+        return preloaded;
+      }
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined' && (window as any).__PRELOADED_DATA__) {
+      const preloaded = (window as any).__PRELOADED_DATA__;
+      if (preloaded.slug === slug || preloaded.id === slug) {
+        return false;
+      }
+    }
+    return true;
+  });
+  const [similarTours, setSimilarTours] = useState<Tour[]>([]);
+  const [urgencyPoints, setUrgencyPoints] = useState<UrgencyPoint[]>([]);
+  const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const [expandedMobileDays, setExpandedMobileDays] = useState<Record<number, boolean>>({ 0: true });
+  const [showPriceSummaryModal, setShowPriceSummaryModal] = useState(false);
+  const navigate = useNavigate();
+
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const tourLabels = labels.filter(l => tour?.labelIds?.includes(l.id));
+
+  const location = useLocation();
+
+  useEffect(() => {
+    const fetchTour = async () => {
+      // Extract target identifier from pathname or params to preserve characters like '&'
+      const pathSlug = location.pathname.replace(/^\/(tour|tours)\/?/, '').split('?')[0].trim();
+      let rawTarget = pathSlug || slug || '';
+      // If location.search exists and looks like part of the slug from an unencoded &
+      if (location.search && !location.search.includes('=')) {
+        const extraPart = location.search.replace(/^\?/, '&');
+        rawTarget = `${rawTarget}${extraPart}`;
+      }
+      if (!rawTarget || rawTarget === 'undefined' || rawTarget === 'null') {
+        setLoading(false);
+        setTour(null);
+        return;
+      }
+      const decodedSlug = decodeURIComponent(rawTarget).trim();
+      setLoading(true);
+
+      try {
+        let docData: any = null;
+        let docId: string | null = null;
+
+        // 1. Try Firestore within active tenant
+        try {
+          const qSnap = await getDocs(query(collection(db, 'tours'), where('slug', '==', decodedSlug), limit(1)));
+          if (!qSnap.empty) {
+            docId = qSnap.docs[0].id;
+            docData = qSnap.docs[0].data();
+          }
+        } catch (e) {}
+
+        // 2. Try raw Firestore without tenant interceptor
+        if (!docData) {
+          try {
+            const rawSnap = await rawGetDocs(rawQuery(rawCollection(db, 'tours'), rawWhere('slug', '==', decodedSlug), limit(1)));
+            if (!rawSnap.empty) {
+              docId = rawSnap.docs[0].id;
+              docData = rawSnap.docs[0].data();
+            }
+          } catch (e) {}
+        }
+
+        // 3. Try fetching as direct Document ID
+        if (!docData) {
+          try {
+            const idSnap = await rawGetDoc(rawDoc(db, 'tours', decodedSlug));
+            if (idSnap.exists()) {
+              docId = idSnap.id;
+              docData = idSnap.data();
+            }
+          } catch (e) {}
+        }
+
+        // 4. Try stripping brackets or surrounding whitespace
+        if (!docData) {
+          const cleaned = decodedSlug.replace(/^\[|\]$/g, '').trim();
+          if (cleaned && cleaned !== decodedSlug) {
+            try {
+              const cleanSnap = await rawGetDocs(rawQuery(rawCollection(db, 'tours'), rawWhere('slug', '==', cleaned), limit(1)));
+              if (!cleanSnap.empty) {
+                docId = cleanSnap.docs[0].id;
+                docData = cleanSnap.docs[0].data();
+              }
+            } catch (e) {}
+          }
+        }
+
+        // 5. Try fuzzy matching title or slug across all tours
+        if (!docData) {
+          const cleanSearch = decodedSlug.toLowerCase().replace(/[-_]/g, ' ').replace(/\[.*?\]/g, '').trim();
+          if (cleanSearch && cleanSearch.length > 2) {
+            try {
+              const allToursSnap = await rawGetDocs(rawQuery(rawCollection(db, 'tours'), limit(50)));
+              const match = allToursSnap.docs.find((d: any) => {
+                const data = d.data();
+                const tSlug = (data.slug || d.id || '').toLowerCase();
+                const tTitle = (data.title || '').toLowerCase();
+                return tSlug === decodedSlug.toLowerCase() ||
+                       tSlug.includes(decodedSlug.toLowerCase()) || 
+                       decodedSlug.toLowerCase().includes(tSlug) ||
+                       tTitle.includes(cleanSearch) || 
+                       cleanSearch.includes(tTitle);
+              });
+              if (match) {
+                docId = match.id;
+                docData = match.data();
+              }
+            } catch (e) {}
+          }
+        }
+
+        // 6. Server REST Fallback proxy
+        if (!docData) {
+          try {
+            const res = await fetch(`/api/tour-detail/${encodeURIComponent(decodedSlug)}`);
+            if (res.ok) {
+              const restData = await res.json();
+              if (restData && restData.id) {
+                docId = restData.id;
+                docData = restData;
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (docData && docId) {
+          const fetchedTour = { id: docId, ...docData } as Tour;
+
+          // Normalize and defensively sanitize all array fields to prevent rendering runtime crashes
+          fetchedTour.highlights = Array.isArray(fetchedTour.highlights)
+            ? fetchedTour.highlights
+            : (typeof fetchedTour.highlights === 'string' ? (fetchedTour.highlights as string).split(',').map(s => s.trim()).filter(Boolean) : []);
+
+          fetchedTour.inclusions = Array.isArray(fetchedTour.inclusions)
+            ? fetchedTour.inclusions
+            : (typeof fetchedTour.inclusions === 'string' ? (fetchedTour.inclusions as string).split('\n').map(s => s.trim()).filter(Boolean) : []);
+
+          fetchedTour.exclusions = Array.isArray(fetchedTour.exclusions)
+            ? fetchedTour.exclusions
+            : (typeof fetchedTour.exclusions === 'string' ? (fetchedTour.exclusions as string).split('\n').map(s => s.trim()).filter(Boolean) : []);
+
+          fetchedTour.gallery = Array.isArray(fetchedTour.gallery)
+            ? fetchedTour.gallery
+            : (Array.isArray((fetchedTour as any).images) ? (fetchedTour as any).images : []);
+
+          if (!fetchedTour.featuredImage && fetchedTour.gallery.length > 0) {
+            fetchedTour.featuredImage = fetchedTour.gallery[0];
+          }
+
+          fetchedTour.languages = Array.isArray(fetchedTour.languages)
+            ? fetchedTour.languages
+            : (typeof fetchedTour.languages === 'string' ? [fetchedTour.languages] : ['English']);
+
+          fetchedTour.faqs = Array.isArray(fetchedTour.faqs) ? fetchedTour.faqs : [];
+          fetchedTour.itinerary = Array.isArray(fetchedTour.itinerary) ? fetchedTour.itinerary : [];
+          fetchedTour.urgencyPointIds = Array.isArray(fetchedTour.urgencyPointIds) ? fetchedTour.urgencyPointIds : [];
+          fetchedTour.packages = Array.isArray(fetchedTour.packages) ? fetchedTour.packages : [];
+          fetchedTour.multiDayItinerary = Array.isArray(fetchedTour.multiDayItinerary) ? fetchedTour.multiDayItinerary : [];
+          fetchedTour.accommodations = Array.isArray(fetchedTour.accommodations) ? fetchedTour.accommodations : [];
+          fetchedTour.timeSlots = Array.isArray(fetchedTour.timeSlots) ? fetchedTour.timeSlots : [];
+          fetchedTour.addOns = Array.isArray(fetchedTour.addOns) ? fetchedTour.addOns : [];
+          fetchedTour.customAddOns = Array.isArray(fetchedTour.customAddOns) ? fetchedTour.customAddOns : [];
+          if (fetchedTour.customAddOns.length > 0) {
+            const mergedMap = new Map<string, any>();
+            fetchedTour.addOns.forEach(a => { if (a && a.id) mergedMap.set(a.id, a); });
+            fetchedTour.customAddOns.forEach(a => { if (a && a.id) mergedMap.set(a.id, a); });
+            fetchedTour.addOns = Array.from(mergedMap.values());
+          }
+          fetchedTour.infoSections = Array.isArray(fetchedTour.infoSections)
+            ? fetchedTour.infoSections.map((sec: any) => ({
+                title: sec?.title || '',
+                content: Array.isArray(sec?.content)
+                  ? sec.content
+                  : (typeof sec?.content === 'string' ? sec.content.split('\n').map((l: string) => l.trim()).filter(Boolean) : [])
+              }))
+            : [];
+
+          setTour(fetchedTour);
+
+          // Hydrate any missing globalAddOns referenced in addOnIds
+          if (Array.isArray(fetchedTour.addOnIds) && fetchedTour.addOnIds.length > 0) {
+            const existingIds = new Set((fetchedTour.addOns || []).map(a => a.id));
+            const missingIds = fetchedTour.addOnIds.filter(id => !existingIds.has(id));
+            if (missingIds.length > 0) {
+              rawGetDocs(rawCollection(db, 'globalAddOns'))
+                .then((snap) => {
+                  const globals = snap.docs
+                    .map((d: any) => ({ id: d.id, ...d.data() }))
+                    .filter((g: any) => fetchedTour.addOnIds?.includes(g.id));
+                  if (globals.length > 0) {
+                    const combinedMap = new Map<string, any>();
+                    globals.forEach((g: any) => combinedMap.set(g.id, g));
+                    (fetchedTour.addOns || []).forEach(a => { if (a && a.id) combinedMap.set(a.id, a); });
+                    (fetchedTour.customAddOns || []).forEach(a => { if (a && a.id) combinedMap.set(a.id, a); });
+                    setTour(prev => prev ? { ...prev, addOns: Array.from(combinedMap.values()) } : prev);
+                  }
+                })
+                .catch(() => {});
+            }
+          }
+          trackGAViewItem({
+            id: fetchedTour.id,
+            title: fetchedTour.title,
+            price: fetchedTour.regularPrice,
+            category: fetchedTour.categoryId
+          });
+          trackPostHogTourView({
+            id: fetchedTour.id,
+            title: fetchedTour.title,
+            price: fetchedTour.regularPrice,
+            category: fetchedTour.categoryId,
+            location: fetchedTour.location
+          });
+          
+          // Fetch similar tours logic
+          const getSimilarTours = async () => {
+            try {
+              let finalSimilar: Tour[] = [];
+              if (docData.categoryId) {
+                const qCat = rawQuery(
+                  rawCollection(db, 'tours'), 
+                  rawWhere('categoryId', '==', docData.categoryId),
+                  limit(5)
+                );
+                const qSnapCat = await rawGetDocs(qCat);
+                finalSimilar = qSnapCat.docs
+                  .map((d: any) => ({ id: d.id, ...d.data() } as Tour))
+                  .filter((t: any) => t.id !== docId);
+              }
+
+              if (finalSimilar.length < 3) {
+                const qAll = rawQuery(rawCollection(db, 'tours'), limit(10));
+                const qSnapAll = await rawGetDocs(qAll);
+                const otherTours = qSnapAll.docs
+                  .map((d: any) => ({ id: d.id, ...d.data() } as Tour))
+                  .filter((t: any) => t.id !== docId && !finalSimilar.some((st: any) => st.id === t.id));
+                
+                finalSimilar = [...finalSimilar, ...otherTours];
+              }
+
+              setSimilarTours(finalSimilar.slice(0, 4));
+            } catch (err) {
+              console.error("Error fetching similar tours", err);
+            }
+          };
+
+          getSimilarTours();
+
+          // Fetch all urgency points (isolated so failure never breaks tour display)
+          try {
+            const tenantId = getActiveTenantId();
+            let urgencySnap;
+            if (tenantId) {
+              urgencySnap = await getDocs(query(collection(db, 'urgencyPoints'), where('tenantId', '==', tenantId)));
+            } else {
+              urgencySnap = await rawGetDocs(rawCollection(db, 'urgencyPoints'));
+            }
+            const allPoints = urgencySnap.docs.map((d: any) => ({ id: d.id, ...d.data() } as UrgencyPoint));
+            const seen = new Set<string>();
+            const uniquePoints: UrgencyPoint[] = [];
+            for (const pItem of allPoints) {
+              const title = (pItem.title || (pItem as any).text || '').trim().toLowerCase();
+              if (title && !seen.has(title)) {
+                seen.add(title);
+                uniquePoints.push(pItem);
+              } else if (!title) {
+                uniquePoints.push(pItem);
+              }
+            }
+            setUrgencyPoints(uniquePoints);
+          } catch (urgencyErr) {
+            console.warn("Non-fatal urgency points fetch note:", urgencyErr);
+          }
+        } else {
+          setTour(null);
+        }
+      } catch (error) {
+        console.error("Error fetching tour", error);
+        setTour(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTour();
+  }, [slug, location.pathname]);
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: tour?.title,
+        text: tour?.description,
+        url: window.location.href,
+      });
+    } else {
+      alert("Link copied to clipboard!");
+      navigator.clipboard.writeText(window.location.href);
+    }
+  };
+
+  const siteUrl = window.location.origin;
+  const siteName = settings?.siteName || 'Bali Adventours';
+  const tourPrice = tour?.discountPrice || tour?.regularPrice || 0;
+  
+  const tourTitle = tour ? 
+    (settings?.tourTitleFormat || '{{title}} | {{siteName}}')
+      .replace('{{title}}', tour.title)
+      .replace('{{siteName}}', siteName) : 
+    siteName;
+
+  const safeDuration = typeof tour?.duration === 'number' 
+    ? `${tour.duration} ${(tour as any).durationUnit || 'Day'}` 
+    : String(tour?.duration || 'Full Day');
+
+  const tourRatingFormatted = typeof tour?.rating === 'number' 
+    ? tour.rating.toFixed(1) 
+    : (tour?.rating ? String(tour.rating) : '5.0');
+
+  const seoDescription = tour ? 
+    `Book ${tour.title} from just $${tourPrice}. Explore ${tour.location || 'Bali'} with top-rated guides. ${safeDuration} experience with ${tour.rating || 5.0}/5 stars.` : 
+    "Discover amazing Bali tours and activities.";
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": siteUrl
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Tours",
+        "item": `${siteUrl}/tours`
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": tour?.title,
+        "item": window.location.href
+      }
+    ]
+  };
+
+  const jsonLd = tour ? generateTourSchema(tour, siteUrl, settings) : null;
+
+  if (loading) return <Loader />;
+
+  if (!tour) {
+    return (
+      <div className="min-h-[70vh] bg-zinc-50/50 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-white border border-zinc-200/80 rounded-3xl p-8 sm:p-10 shadow-xl space-y-6">
+          <div className="w-16 h-16 bg-orange-50 text-primary border border-orange-200/60 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+            <Compass className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Experience Not Found</h1>
+            <p className="text-xs sm:text-sm text-gray-500 leading-relaxed font-medium">
+              We couldn&apos;t find this specific tour link. It may have been updated, renamed, or moved.
+            </p>
+          </div>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              to="/tours"
+              className="w-full sm:w-auto px-6 py-3.5 bg-primary hover:bg-orange-600 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-md shadow-orange-500/20 text-center"
+            >
+              Browse All Tours
+            </Link>
+            <Link
+              to="/"
+              className="w-full sm:w-auto px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs uppercase tracking-wider rounded-xl transition text-center"
+            >
+              Return Home
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const galleryImages = (() => {
+    const rawGallery = Array.isArray(tour.gallery) && tour.gallery.length > 0 
+      ? tour.gallery 
+      : (Array.isArray((tour as any).images) && (tour as any).images.length > 0 ? (tour as any).images : []);
+    const feat = tour.featuredImage || rawGallery[0] || '';
+    if (feat) {
+      const cleaned = rawGallery.filter(img => img !== feat);
+      return [feat, ...cleaned];
+    }
+    return rawGallery.length > 0 ? rawGallery : [settings?.heroImage || settings?.ogImage || "https://i.ibb.co.com/pvLCVYkM/ALAS-HARUM8-optimized.webp"];
+  })();
+
+  return (
+    <div className="min-h-screen bg-white w-full">
+      <Helmet>
+        <title>{tourTitle}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+        <meta name="description" content={seoDescription} />
+        <link rel="canonical" href={window.location.href} />
+        <meta property="og:title" content={tourTitle} />
+        <meta property="og:description" content={seoDescription} />
+        <meta property="og:image" content={tour.featuredImage || tour.gallery?.[0] || settings?.ogImage || settings?.heroImage || settings?.logoURL || "https://i.ibb.co.com/pvLCVYkM/ALAS-HARUM8-optimized.webp"} />
+        <meta property="og:url" content={window.location.href} />
+        <meta property="og:type" content="product" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={tourTitle} />
+        <meta name="twitter:description" content={seoDescription} />
+        <meta name="twitter:image" content={tour.featuredImage || tour.gallery?.[0] || settings?.ogImage || settings?.heroImage || settings?.logoURL || "https://i.ibb.co.com/pvLCVYkM/ALAS-HARUM8-optimized.webp"} />
+        {jsonLd && (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
+          />
+        )}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema).replace(/</g, '\\u003c') }}
+        />
+      </Helmet>
+      {isMobile ? (
+        <div className="w-full">
+        {/* Hero Gallery Slider */}
+        <div className="relative w-full">
+          <TourGallery images={galleryImages} />
+          
+          <div className="absolute top-4 left-4 z-10">
+            <button 
+              onClick={() => navigate(-1)}
+              className="h-10 w-10 flex items-center justify-center bg-black/20 backdrop-blur-md border border-white/20 rounded-full text-white active:scale-95 transition-all"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="absolute bottom-6 left-6 right-6 z-10 pointer-events-none">
+            <h1 className="text-2xl font-black text-white leading-tight shadow-sm">
+              {tour.title}
+            </h1>
+            <div className="flex flex-wrap items-center gap-2 mt-4">
+              <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-white text-[10px] font-black">
+                <Star className="h-3 w-3 fill-current text-amber-400" />
+                {tour?.rating ? `${tourRatingFormatted} Rating` : 'New'}
+              </div>
+              <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-white text-[10px] font-black">
+                <Clock className="h-3 w-3" />
+                {safeDuration}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Full-screen Gallery Overlay */}
+        <AnimatePresence>
+          {showAllPhotos && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-black flex flex-col pt-safe"
+            >
+              <div className="flex items-center justify-between p-6">
+                <button onClick={() => setShowAllPhotos(false)} className="h-10 w-10 flex items-center justify-center bg-white/10 rounded-full text-white">
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
+                <div className="text-center">
+                  <h3 className="text-white font-black text-xs uppercase tracking-widest">Gallery</h3>
+                  <p className="text-white/40 text-[10px] font-bold">{galleryImages.length} Photos</p>
+                </div>
+                <div className="w-10 h-10" />
+              </div>
+              
+              <div className="flex-1 overflow-y-auto px-4 pb-12">
+                <div className="grid grid-cols-2 gap-4">
+                  {galleryImages.map((img, i) => (
+                    <motion.div 
+                      key={i}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className={cn(
+                        "rounded-2xl overflow-hidden bg-white/5",
+                        i % 3 === 0 ? "col-span-2 aspect-video" : "aspect-square"
+                      )}
+                    >
+                      <SmartImage src={img} alt={`${tour.title} ${i}`} aspectRatio="auto" />
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Content Section */}
+        <div className="px-6 py-10 space-y-12 pb-32">
+          {/* Overview */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-black text-gray-900 tracking-tight">Overview</h2>
+            <p className="text-sm leading-relaxed text-gray-500 font-medium">{tour.description}</p>
+          </section>
+
+          {/* Tour Highlights */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-black text-gray-900 tracking-tight">Tour Highlights</h2>
+            <div className="grid grid-cols-1 gap-2">
+              {tour.highlights?.slice(0, 10).map((h, i) => (
+                <div key={i} className="flex gap-3 p-2.5 bg-gray-50/50 rounded-xl border border-gray-100/40">
+                  <div className="h-7 w-7 md:h-8 md:w-8 shrink-0 rounded-lg bg-white flex items-center justify-center text-primary shadow-sm font-black text-xs">
+                    <Check className="h-4 w-4" />
+                  </div>
+                  <div className="flex items-center">
+                    <p className="text-sm md:text-base font-semibold text-gray-900 leading-snug pr-4">{h}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Tour Packages (Mobile) */}
+          {tour.packages && tour.packages.length > 0 && (
+            <section id="mobile-packages" className="space-y-4">
+              <div className="space-y-1">
+                <h2 className="text-xl font-black text-gray-900 tracking-tight">Available Packages</h2>
+                <p className="text-xs text-gray-500 font-medium">
+                  {tour.packages.length} {tour.packages.length === 1 ? 'option' : 'options'} tailored for your experience
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {tour.packages.map((pkg, idx) => {
+                  const hasTiers = pkg.tiers && pkg.tiers.length > 0;
+                  const startingRate = hasTiers ? pkg.tiers[0].adultPrice : (tour.discountPrice || tour.regularPrice);
+                  const pkgInclusions = (pkg.inclusions || []).filter(item => item && item.trim() !== '');
+                  const pkgExclusions = (pkg.exclusions || []).filter(item => item && item.trim() !== '');
+                  const packageDesc = pkg.description || pkg.details;
+
+                  return (
+                    <div 
+                      key={idx} 
+                      className="border border-gray-200/90 rounded-2xl p-4 bg-white shadow-xs space-y-3 text-left"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-primary bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100/60">
+                            Option {idx + 1}
+                          </span>
+                          <h3 className="font-extrabold text-gray-900 text-base mt-1">{pkg.name || `Package ${idx + 1}`}</h3>
+                        </div>
+                        {startingRate !== undefined && startingRate > 0 && (
+                          <div className="text-right shrink-0">
+                            <span className="font-black text-primary text-base">
+                              <FormattedPrice amount={startingRate} />
+                            </span>
+                            <span className="text-[10px] text-gray-400 block font-medium">/ person</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Package Description (Multi-line paragraph) */}
+                      {packageDesc && (
+                        <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line font-medium bg-gray-50/80 p-3 rounded-xl border border-gray-100">
+                          {packageDesc}
+                        </p>
+                      )}
+
+                      {/* Meeting Point / Pickup */}
+                      {(pkg.meetingPoint || pkg.pickupAreas) && (
+                        <div className="flex flex-wrap gap-1.5 text-[11px] text-gray-500">
+                          {pkg.meetingPoint && (
+                            <span className="flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                              <MapPin className="h-3 w-3 text-primary shrink-0" />
+                              <span className="truncate max-w-[220px]">{pkg.meetingPoint}</span>
+                            </span>
+                          )}
+                          {pkg.pickupAreas && (
+                            <span className="bg-orange-50/60 text-primary px-2 py-0.5 rounded border border-orange-100">
+                              Pickup: {pkg.pickupAreas}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Inclusions / Exclusions */}
+                      {(pkgInclusions.length > 0 || pkgExclusions.length > 0) && (
+                        <div className="space-y-1.5 text-xs pt-1">
+                          {pkgInclusions.slice(0, 3).map((inc, iIdx) => (
+                            <div key={iIdx} className="flex items-start gap-1.5 text-gray-600">
+                              <Check className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                              <span>{inc}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const bookingForm = document.getElementById('package') || document.getElementById('tour-booking-form');
+                          if (bookingForm) {
+                            bookingForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }
+                        }}
+                        className="w-full py-2 px-3 rounded-xl bg-orange-50 hover:bg-primary hover:text-white text-primary text-xs font-bold transition-all border border-orange-200/80 text-center cursor-pointer"
+                      >
+                        Select this package &rarr;
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Optional Add-Ons & Upgrades (Mobile) */}
+          {tour.addOns && tour.addOns.length > 0 && (
+            <section id="mobile-addons" className="space-y-4">
+              <div className="space-y-1">
+                <h2 className="text-xl font-black text-gray-900 tracking-tight">Optional Add-Ons & Upgrades</h2>
+                <p className="text-xs text-gray-500 font-medium">
+                  Customize your experience with optional extras during booking
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                {tour.addOns.map((addon, aIdx) => (
+                  <div
+                    key={addon.id || aIdx}
+                    className="border border-gray-200/90 rounded-2xl p-4 bg-white shadow-2xs flex items-start justify-between gap-3 text-left"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="h-5 w-5 rounded-full bg-orange-50 text-primary flex items-center justify-center text-xs font-black shrink-0 border border-orange-100">
+                          +
+                        </span>
+                        <h3 className="font-extrabold text-gray-900 text-sm">{addon.name}</h3>
+                      </div>
+                      {addon.description && (
+                        <p className="text-xs text-gray-500 leading-relaxed pl-7">{addon.description}</p>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="font-black text-primary text-sm block">
+                        +<FormattedPrice amount={addon.price} />
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                        / {addon.unit || 'per person'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Included / Not Included */}
+          <section className="space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-orange-500" /> What's Included
+              </h2>
+              <ul className="space-y-3">
+                {tour.inclusions?.filter(l => l.trim() !== '').map((item, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm text-gray-500 font-medium">
+                    <Check className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="space-y-4">
+              <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                <X className="h-5 w-5 text-rose-500" /> What's Not Included
+              </h2>
+              <ul className="space-y-3">
+                {tour.exclusions?.filter(l => l.trim() !== '').map((item, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm text-gray-500 font-medium">
+                    <X className="h-4 w-4 text-rose-500 mt-0.5 shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          {/* Itinerary Timeline */}
+          <section className="space-y-6">
+            <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
+              <div>
+                <h2 className="text-xl font-black text-gray-900 tracking-tight">Your Tour Itinerary</h2>
+                <p className="text-xs text-gray-500 font-medium mt-0.5">
+                  {tour.tourDurationType === 'multi_day' 
+                    ? `${tour.multiDayItinerary?.length || 0}-Day Journey Breakdown` 
+                    : 'Step-by-step experience timeline'}
+                </p>
+              </div>
+            </div>
+
+            {tour.tourDurationType === 'multi_day' && tour.multiDayItinerary && tour.multiDayItinerary.length > 0 ? (
+              <div className="space-y-4">
+                {tour.multiDayItinerary.map((day, dIdx) => {
+                  const isExpanded = expandedMobileDays[dIdx] ?? true;
+                  return (
+                    <div 
+                      key={dIdx} 
+                      className="border-2 border-orange-100/80 rounded-2xl bg-white shadow-2xs overflow-hidden transition-all"
+                    >
+                      {/* Day Accordion Header */}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedMobileDays(prev => ({ ...prev, [dIdx]: !prev[dIdx] }))}
+                        className="w-full text-left p-4 bg-gradient-to-r from-orange-50/70 via-white to-white flex items-center justify-between gap-3 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="px-2.5 py-1 bg-primary text-white font-black rounded-lg text-[10px] tracking-wider shrink-0 shadow-xs">
+                            DAY {day.dayNumber}
+                          </span>
+                          <div>
+                            <h3 className="text-sm font-extrabold text-gray-900 leading-tight">{day.title}</h3>
+                            <span className="text-[10px] text-gray-400 font-medium">
+                              {day.itineraryItems?.length || 0} Scheduled Activities
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="h-7 w-7 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-500 shrink-0">
+                          <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", isExpanded && "rotate-180")} />
+                        </div>
+                      </button>
+
+                      {/* Day Accordion Content */}
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="p-4 space-y-4 border-t border-orange-100/50"
+                          >
+                            {day.description && (
+                              <p className="text-xs text-gray-600 font-medium leading-relaxed bg-gray-50/80 p-3 rounded-xl border border-gray-100">
+                                {day.description}
+                              </p>
+                            )}
+
+                            {/* Day Schedule Items */}
+                            <div className="space-y-3 pt-1">
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> Schedule Timeline
+                              </h4>
+                              <div className="space-y-0 relative">
+                                {(day.itineraryItems || []).map((item, itemIdx) => (
+                                  <div key={itemIdx} className="relative pl-7 space-y-2 group pb-6 last:pb-1">
+                                    {/* Vertical Line */}
+                                    {itemIdx !== (day.itineraryItems || []).length - 1 && (
+                                      <div className="absolute left-[7px] top-4 bottom-0 w-0.5 bg-orange-200 group-hover:bg-primary transition-colors z-0" />
+                                    )}
+                                    {/* Timeline Dot */}
+                                    <div className="absolute left-0 top-1 h-4 w-4 rounded-full bg-white border-4 border-primary shadow-2xs group-hover:scale-125 transition-transform z-10" />
+                                    
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-[10px] font-black text-primary bg-orange-50 px-2 py-0.5 rounded border border-orange-100 flex items-center gap-1">
+                                        <Clock className="h-2.5 w-2.5" /> {item.time}
+                                      </span>
+                                      <h5 className="font-extrabold text-gray-900 text-xs">{item.title}</h5>
+                                    </div>
+
+                                    {item.image && (
+                                      <div className="w-full aspect-video rounded-xl overflow-hidden bg-gray-50 border border-gray-100 shadow-2xs group-hover:shadow-sm transition-shadow">
+                                        <SmartImage src={item.image} alt={item.title} aspectRatio="auto" />
+                                      </div>
+                                    )}
+
+                                    {item.description && (
+                                      <p className="text-xs text-gray-500 font-medium leading-relaxed">{item.description}</p>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="space-y-8 pl-1">
+                {(tour.itinerary || []).map((step, i) => (
+                  <div key={i} className="relative group">
+                    {i !== (tour.itinerary || []).length - 1 && (
+                      <div className="absolute left-[15px] top-8 bottom-[-32px] w-0.5 bg-orange-200" />
+                    )}
+                    <div className="flex gap-4">
+                      <div className="relative z-10">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary font-black text-white text-[10px] shadow-md shadow-orange-200 ring-4 ring-white">
+                          {i + 1}
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-3 bg-white p-4 rounded-2xl border border-gray-100 shadow-2xs">
+                        <div className="flex flex-col gap-1">
+                          <h3 className="text-base font-black text-gray-900 leading-tight">{step.title}</h3>
+                          {step.pickup && (
+                            <div className="flex items-center gap-1.5 text-primary font-bold text-[10px] bg-orange-50 w-fit px-2.5 py-0.5 rounded-full border border-orange-100">
+                              <MapPin className="h-3 w-3" />
+                              {typeof step.pickup === 'object' ? (step.pickup as any).description : step.pickup}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {(step.image || (typeof step.pickup === 'object' && (step.pickup as any)?.image)) && (
+                            <div className="w-full aspect-[4/3] bg-gray-50 overflow-hidden rounded-xl border border-gray-100">
+                              <SmartImage 
+                                src={step.image || (typeof step.pickup === 'object' ? (step.pickup as any)?.image : '')} 
+                                alt={step.title} 
+                                aspectRatio="auto"
+                              />
+                            </div>
+                          )}
+                          {step.description && (
+                            <p className="text-xs leading-relaxed text-gray-600 font-medium">{step.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Accommodations section for Mobile Multi-day */}
+          {tour.tourDurationType === 'multi_day' && tour.accommodations && tour.accommodations.length > 0 && (
+            <section className="space-y-4">
+              <h2 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                <Hotel className="h-5 w-5 text-primary" /> Accommodations
+              </h2>
+              <div className="grid grid-cols-1 gap-4">
+                {tour.accommodations.map((acc, idx) => (
+                  <div key={idx} className="border border-gray-100 rounded-xl bg-white p-4 shadow-2xs space-y-3">
+                    {acc.image && (
+                      <div className="aspect-video rounded-lg overflow-hidden bg-gray-100">
+                        <SmartImage src={acc.image} alt={acc.name} aspectRatio="auto" />
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-primary bg-orange-50 px-2 py-0.5 rounded">
+                        {acc.category}
+                      </span>
+                      <h3 className="font-extrabold text-gray-900 text-sm mt-1">{acc.name}</h3>
+                      {acc.description && <p className="text-xs text-gray-500 mt-1">{acc.description}</p>}
+                    </div>
+                    {acc.roomTypes && acc.roomTypes.length > 0 && (
+                      <div className="pt-2 border-t border-gray-50 space-y-1">
+                        <span className="text-[9px] font-bold text-gray-400 uppercase">Available Rooms</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {acc.roomTypes.map((rt, rtIdx) => (
+                            <span key={rtIdx} className="text-[11px] bg-gray-50 font-bold text-gray-700 px-2 py-0.5 rounded border border-gray-100">
+                              {rt.name} (${rt.price})
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Booking Widget (Inline for mobile screens) */}
+          <section className="md:hidden space-y-4 pt-6 border-t border-gray-100/60 pb-16">
+            <h2 className="text-xl font-black text-gray-900 tracking-tight">Select Date & Travelers</h2>
+            <BookingForm tour={tour} />
+          </section>
+
+          {/* Important Info */}
+          <section className="space-y-4">
+            <h2 className="text-xl font-bold text-gray-900">Important Information</h2>
+            <div className="bg-gray-50 border border-gray-100/65 rounded-xl p-4.5 space-y-5">
+              <div className="space-y-5">
+                {/* Dynamic Info Sections */}
+                {(tour.infoSections || []).map((section, idx) => (
+                  <div key={idx} className="space-y-1.5">
+                    <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-gray-800">
+                      {section.title}
+                    </h3>
+                    <ul className="space-y-1">
+                      {(section.content || []).filter((line: string) => line.trim() !== '').map((point: string, pIdx: number) => (
+                        <li key={pIdx} className="flex items-start gap-2">
+                          <Check className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                          <span className="text-xs sm:text-sm text-gray-500 font-light leading-relaxed">{point}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-5 pt-4 border-t border-gray-200">
+                {/* General Info Fallback */}
+                {tour.importantInfo && (
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-gray-800">Policy & Terms</h3>
+                    <p className="text-xs sm:text-sm text-gray-500 font-light leading-relaxed whitespace-pre-wrap">
+                      {tour.importantInfo}
+                    </p>
+                  </div>
+                )}
+
+                {/* Languages offered */}
+                {tour.languages && tour.languages.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-gray-800">Languages Offered</h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {tour.languages.filter(l => l.trim() !== '').map((lang, idx) => (
+                        <span key={idx} className="px-3 py-1 bg-white border border-gray-100 font-bold text-gray-600 rounded-full text-xs shadow-sm">
+                          {lang}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* FAQ Accordion */}
+          <section className="space-y-6">
+            <h2 className="text-xl font-black text-gray-900 tracking-tight">Frequently Asked Questions</h2>
+            <div className="space-y-3">
+              {tour.faqs?.map((faq, i) => (
+                <div key={i} className="bg-gray-50 rounded-2xl overflow-hidden border border-gray-100">
+                  <button 
+                    onClick={() => setActiveFaq(activeFaq === i ? null : i)}
+                    className="w-full flex items-center justify-between p-5 text-left active:bg-gray-100 transition-colors"
+                  >
+                    <span className="text-sm font-bold text-gray-800">{faq.question}</span>
+                    <ChevronDown className={cn("h-5 w-5 text-gray-400 transition-transform", activeFaq === i && "rotate-180")} />
+                  </button>
+                  {activeFaq === i && (
+                    <div className="px-5 pb-5 animate-in slide-in-from-top-2">
+                      <p className="text-xs leading-relaxed text-gray-500">{faq.answer}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Reviews Section */}
+          <section className="space-y-12">
+            <ReviewSection tourId={tour.id} />
+          </section>
+
+          {/* Related Tours Section Mobile */}
+          {similarTours.length > 0 && (
+            <section className="space-y-8 pt-8 border-t border-gray-100">
+               <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-black text-gray-900 tracking-tight">Related Tours</h2>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em] mt-1">Handpicked for you</p>
+                  </div>
+                  <Link to="/tours" className="text-[10px] font-black text-primary uppercase tracking-widest bg-orange-50 px-3 py-1.5 rounded-full">Explore All</Link>
+               </div>
+               <div className="grid grid-cols-1 gap-8">
+                 {similarTours.slice(0, 2).map((st, i) => (
+                   <TourCard key={st.id} tour={st} index={i} />
+                 ))}
+               </div>
+            </section>
+          )}
+        </div>
+        </div>
+      ) : (
+        <div className="w-full">
+        {/* Breadcrumb */}
+        <div className="bg-gray-50 py-4">
+          <div className="container mx-auto px-4 lg:px-8">
+            <nav className="flex items-center gap-2 text-xs font-medium text-gray-500">
+              <Link to="/" className="hover:text-blue-600">Home</Link>
+              <ChevronRight className="h-3 w-3" />
+              <Link to="/tours" className="hover:text-blue-600">Tours</Link>
+              <ChevronRight className="h-3 w-3" />
+              <span className="text-gray-900 truncate max-w-[200px] md:max-w-none">{tour.title}</span>
+            </nav>
+          </div>
+        </div>
+
+        <main className="container mx-auto px-4 py-8 lg:px-8">
+          {/* Title & Share */}
+          <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div className="space-y-4">
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900 md:text-4xl lg:text-5xl">
+                {tour.title}
+              </h1>
+              <div className="flex flex-wrap items-center gap-6 text-sm font-medium text-gray-500">
+                <div className="flex items-center gap-1">
+                  <div className="flex text-amber-500">
+                    <Star className="h-4 w-4 fill-current" />
+                  </div>
+                  <span className="text-gray-900 font-bold">{tourRatingFormatted}</span>
+                  <span className="text-xs font-bold text-gray-400">({tour.reviewsCount || 0} Reviews)</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-primary rounded-full text-xs font-bold border border-orange-100">
+                  <MapPin className="h-3 w-3" />
+                  <span>{tour.location}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-primary rounded-full text-xs font-bold border border-orange-100">
+                  <Clock className="h-3 w-3" />
+                  <span>{safeDuration}</span>
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={handleShare}
+              className="flex items-center justify-center gap-2 rounded-[10px] border border-gray-200 px-6 py-3 text-sm font-bold text-gray-700 transition-all hover:bg-gray-50 hover:border-gray-300 active:scale-95"
+            >
+              <Share2 className="h-4 w-4" /> Share
+            </button>
+          </div>
+
+          {/* Gallery */}
+          <TourGallery images={galleryImages} />
+
+          {/* Dynamic Urgency Points */}
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {urgencyPoints
+              .filter(point => Array.isArray(tour?.urgencyPointIds) && tour.urgencyPointIds.includes(point.id))
+              .map(point => {
+                const IconComponent = (Icons as any)[point.icon] || ShieldCheck;
+                return (
+                  <div key={point.id} className="flex gap-4 p-4 rounded-2xl bg-orange-50/50 border border-orange-100/50 group hover:bg-orange-50 transition-colors">
+                    <div className="h-10 w-10 shrink-0 rounded-xl bg-white flex items-center justify-center text-primary shadow-sm">
+                      <IconComponent className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-gray-900 tracking-tight">{point.title}</h4>
+                      <p className="text-[11px] text-gray-500 font-medium leading-tight mt-1">{point.description}</p>
+                    </div>
+                  </div>
+                );
+            })}
+          </div>
+
+          <div className="mt-12 flex flex-col lg:flex-row gap-12 items-start">
+            <div className="flex-1 lg:w-2/3 space-y-16">
+              <TourInfo tour={tour} />
+              <ReviewSection tourId={tour.id} />
+            </div>
+            <aside className="hidden md:block w-full md:w-[360px] lg:w-[390px] xl:w-[420px] shrink-0 md:sticky md:top-24 max-h-[calc(100vh-100px)] overflow-y-auto pr-1 no-scrollbar self-start z-20">
+              <BookingForm tour={tour} />
+            </aside>
+          </div>
+
+          {/* Related Tours Section Desktop */}
+          {similarTours.length > 0 && (
+            <div className="mt-24 pt-16 border-t border-gray-100">
+              <div className="flex items-end justify-between mb-12">
+                <div>
+                   <h2 className="text-3xl font-black text-gray-900 tracking-tight">You Might Also Like</h2>
+                   <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mt-2">More adventures wait in {tour.location}</p>
+                </div>
+                <Link to="/tours" className="group flex items-center gap-2 text-sm font-black text-primary uppercase tracking-widest h-12 px-8 rounded-full border-2 border-orange-50 hover:bg-orange-50 transition-all">
+                  Browse All Tours <ChevronRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </div>
+              <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {similarTours.map((st, i) => (
+                  <TourCard key={st.id} tour={st} index={i} />
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+      )}
+
+      {/* Mobile Fixed Sticky Bottom Bar for Instant Booking & Summary */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] bg-white border-t border-slate-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(0,0,0,0.12)] flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setShowPriceSummaryModal(true)}
+          className="text-left cursor-pointer group"
+          aria-label="Open price summary and breakdown"
+        >
+          <div className="flex items-center gap-1 text-[10px] text-slate-400 font-black uppercase tracking-wider">
+            <span>Starting From</span>
+            <span className="text-primary font-bold flex items-center gap-0.5 underline">
+              Details <ChevronUp className="h-3 w-3" />
+            </span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-xl font-black text-slate-900 font-display">
+              <FormattedPrice amount={tour.discountPrice || tour.regularPrice} />
+            </span>
+            <span className="text-[10px] text-slate-400 font-bold">/ person</span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            const el = document.getElementById('booking-widget-container') || document.querySelector('form');
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+              setShowPriceSummaryModal(true);
+            }
+          }}
+          className="bg-primary hover:bg-orange-600 text-white font-black text-xs uppercase tracking-wider px-6 py-3 rounded-full shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+        >
+          Book Now <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Interactive Price Summary Modal / Bottom Sheet */}
+      {tour && (
+        <PriceSummaryModal
+          isOpen={showPriceSummaryModal}
+          onClose={() => setShowPriceSummaryModal(false)}
+          tour={tour}
+          onProceed={(d, t, a, c, p, selectedAddOnsList) => {
+            const targetTourId = tour.id || (tour as any).slug || (tour as any)._id;
+            const pkgParam = p ? `&package=${encodeURIComponent(p.name)}` : '';
+            const timeParam = t ? `&time=${encodeURIComponent(t)}` : '';
+            const addonsParam = selectedAddOnsList && selectedAddOnsList.length > 0
+              ? `&addons=${encodeURIComponent(selectedAddOnsList.map(item => `${item.id}:${item.quantity}`).join(','))}`
+              : '';
+            navigate(`/checkout/${targetTourId}?date=${d}&adults=${a}&children=${c}${timeParam}${pkgParam}${addonsParam}`);
+          }}
+        />
+      )}
+    </div>
+  );
+}

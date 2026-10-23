@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan for adding Tour-Specific (Direct) Product Add-Ons alongside Global Add-Ons in the Tour Editor Dashboard, plus showcasing and pre-selecting Product Add-Ons on the Tour Detail page, Price Summary Modal, and Checkout flow with zero breaking changes.",
+  "updatedAt":  "2026-10-23T11:03:52.343384716Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

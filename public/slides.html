@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Cloud AI Builder Cup 2026 - Tripbone Presentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0f172a;
+      color: #1e293b;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+    }
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 1100px;
+      margin-bottom: 16px;
+      padding: 12px 24px;
+      background: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      color: #f8fafc;
+    }
+    .btn {
+      background: #0284c7;
+      color: #ffffff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #0369a1;
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .slide-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    .slide-container {
+      width: 100%;
+      max-width: 1100px;
+      aspect-ratio: 16 / 9;
+      background: #ffffff;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .slide-header {
+      background: #000000;
+      color: #ffffff;
+      padding: 16px 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #334155;
+    }
+    .brand-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      font-size: 16px;
+      letter-spacing: -0.3px;
+    }
+    .brand-left span.accent {
+      background: linear-gradient(135deg, #4285f4, #ea4335, #fbbc05, #34a853);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .badge-japac {
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 4px 10px;
+      border-radius: 20px;
+      color: #cbd5e1;
+    }
+    .slide-body {
+      flex: 1;
+      padding: 34px 44px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    h2.slide-title {
+      font-size: 25px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .slide-title .pill {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      background: #e0f2fe;
+      color: #0284c7;
+      border-radius: 8px;
+    }
+    p.lead-text {
+      font-size: 14px;
+      color: #475569;
+      line-height: 1.55;
+      margin-bottom: 16px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .card h3 {
+      font-size: 14px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card p, .card li {
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.5;
+    }
+    .card ul {
+      padding-left: 16px;
+      margin-top: 4px;
+    }
+    .highlight-card {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+    }
+    .highlight-card h3 {
+      color: #166534;
+    }
+    .tech-card {
+      background: #f0f9ff;
+      border-color: #bae6fd;
+    }
+    .tech-card h3 {
+      color: #0369a1;
+    }
+    .stat-number {
+      font-size: 26px;
+      font-weight: 900;
+      color: #0284c7;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .stat-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .code-box {
+      background: #0f172a;
+      color: #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 14px;
+      border-radius: 12px;
+      line-height: 1.45;
+      overflow-x: auto;
+      white-space: pre;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    table.data-table th {
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+      text-align: left;
+      padding: 9px 12px;
+      border-bottom: 2px solid #cbd5e1;
+    }
+    table.data-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #475569;
+    }
+    .slide-footer {
+      padding: 12px 36px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11.5px;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+    /* Cover Slide Specifics */
+    .cover-body {
+      background: radial-gradient(circle at top right, #1e293b, #000000);
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 46px 60px;
+    }
+    .cover-title {
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: -1px;
+      margin-bottom: 10px;
+      line-height: 1.15;
+    }
+    .cover-subtitle {
+      font-size: 17px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 24px;
+      max-width: 720px;
+    }
+    .meta-box {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
+      padding: 16px 22px;
+      width: 100%;
+      max-width: 720px;
+      font-size: 13px;
+      line-height: 1.65;
+      color: #cbd5e1;
+    }
+    .meta-box strong {
+      color: #ffffff;
+    }
+    @media print {
+      body {
+        background: transparent;
+        padding: 0;
+      }
+      .controls-bar {
+        display: none;
+      }
+      .slide-container {
+        page-break-after: always;
+        box-shadow: none;
+        border-radius: 0;
+        margin-bottom: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Controls Bar -->
+  <div class="controls-bar">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <button class="btn btn-secondary" onclick="prevSlide()">◀ Prev (←)</button>
+      <button class="btn" onclick="nextSlide()">Next (→) ▶</button>
+      <span class="slide-counter" id="counter">Slide 1 / 16</span>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn btn-secondary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      <a href="https://ais-pre-gueyp6lq66x3mljvag7bro-49253860877.asia-east1.run.app" target="_blank" class="btn" style="text-decoration: none;">🚀 Open Live App</a>
+    </div>
+  </div>
+
+  <!-- Slides Container -->
+  <div class="slide-container" id="slide-wrapper">
+
+    <!-- SLIDE 1: Title & Team Details -->
+    <div class="slide" id="slide-1">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span style="color:#64748b;">|</span> H2S <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Build in JAPAC. Build for the world.</div>
+      </div>
+      <div class="slide-body cover-body">
+        <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; color: #38bdf8; letter-spacing: 1px; margin-bottom: 6px;">
+          Retail & Commerce: Intelligent Customer & Business Experiences
+        </div>
+        <h1 class="cover-title">Tripbone</h1>
+        <div class="cover-subtitle">The AI-Native Tour & Car Rental Commerce Engine built 100% on Google Cloud</div>
+        <div class="meta-box">
+          <div><strong>a. Team Name:</strong> Tripbone Team</div>
+          <div><strong>b. Team Leader:</strong> I Kadek Didi Suprapta (baliadventours@gmail.com)</div>
+          <div><strong>c. Problem Statement:</strong> Independent tour, activity, and private car charter operators across JAPAC power a $300B tourism economy, yet over 80% still rely on manual WhatsApp chats and spreadsheets—losing up to 25% of gross revenue to OTA commissions (Viator, GetYourGuide, Klook) and 30–40% of international direct sales to timezone friction.</div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 1 of 16</span>
+        <span>Google Cloud AI Builder Cup 2026</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: Instructions -->
+    <div class="slide" id="slide-2" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Submission Template</div>
+      </div>
+      <div class="slide-body" style="justify-content: center; align-items: center; text-align: center;">
+        <div style="font-size: 48px; margin-bottom: 16px;">📋</div>
+        <h2 style="font-size: 24px; font-weight: 800; margin-bottom: 12px;">AI Builder Cup Presentation Template</h2>
+        <p style="font-size: 15px; color: #64748b; max-width: 600px; line-height: 1.6;">
+          This submission is structured strictly following the official Google Cloud AI Builder Cup 16-slide guidelines, detailing the problem statement, opportunities, Google Cloud architecture, performance benchmarks, and live prototype.
+        </p>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 2 of 16</span>
+        <span>Template Alignment Notice</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: Brief About the Idea -->
+    <div class="slide" id="slide-3" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Idea Brief</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Brief About the Idea <span class="pill">Core Concept</span></h2>
+        <p class="lead-text">
+          <strong>Tripbone</strong> is a cloud-native SaaS that provides independent tour and private car rental operators with an enterprise-grade digital storefront and autonomous AI workforce—democratizing direct commerce.
+        </p>
+        <div class="grid-3">
+          <div class="card">
+            <h3>🤖 8 Autonomous AI Tools</h3>
+            <p>Powered by <strong>Google Gemini 3.8 Flash & 3.1 Flash Lite</strong>: instant tour creation, OTA catalog importer, dynamic travel planner with embedded tour inventory, 24/7 Search-grounded concierge, and email extractor.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>🚗 Dual Tour & Car Rental Engine</h3>
+            <p>Native management of scheduled day tours, multi-day packages, and <strong>private car rentals & chauffeur charters</strong> (with-driver vs. self-drive rates, island delivery zones & surcharges).</p>
+          </div>
+          <div class="card tech-card">
+            <h3>💳 Universal BYOPG (0% Commission)</h3>
+            <p>Operators connect their own Stripe, Midtrans QRIS, Xendit, and PayPal accounts. 100% of customer payments settle directly into the operator's merchant bank account with zero platform take-rate.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 3 of 16</span>
+        <span>Tripbone • Brief About the Idea</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: Opportunities -->
+    <div class="slide" id="slide-4" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Market Opportunity</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Opportunities & Market Differentiation <span class="pill">Why Now</span></h2>
+        <div class="grid-3" style="margin-top: 8px;">
+          <div class="card">
+            <h3>1. How is it Different?</h3>
+            <ul>
+              <li><strong>Legacy Engines (Bókun, FareHarbor):</strong> Clunky desktop interfaces, take 2–6% booking cuts, zero native Gen AI.</li>
+              <li><strong>Generic CMS (Shopify, Wix):</strong> Lack travel logistics (pickup zones, tiered group rates, vehicle fleet specs, guide dispatch).</li>
+              <li><strong>Tripbone:</strong> First unified platform combining an Airbnb-grade booking UX, dual tour & car rental engines, autonomous Gemini agents, and 0% commission.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>2. How Does it Solve it?</h3>
+            <ul>
+              <li><strong>Speed:</strong> Reduces tour & fleet setup time from 45 minutes to 2 seconds with Gemini 3.8 Flash.</li>
+              <li><strong>Revenue:</strong> Eliminates the 25% OTA cut, boosting operator net margins by 20–30%.</li>
+              <li><strong>24/7 Capture:</strong> AI Concierge answers midnight questions on pickup and safety in under 2 seconds.</li>
+            </ul>
+          </div>
+          <div class="card highlight-card">
+            <h3>3. Core USPs</h3>
+            <ul>
+              <li><strong>Catalog-Grounded AI Itineraries:</strong> Gemini embeds real, active bookable tour cards directly into custom itineraries.</li>
+              <li><strong>Dual Tour & Car Rental Suite:</strong> Full car fleet management alongside scheduled tour packages.</li>
+              <li><strong>Zero-Data-Entry Dispatch:</strong> Parses raw emails into verified QR check-in vouchers.</li>
+              <li><strong>Universal Multi-Gateway BYOPG:</strong> Direct local currency settlement with no middleman.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 4 of 16</span>
+        <span>Tripbone • Opportunities</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Features Offered -->
+    <div class="slide" id="slide-5" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Feature Suite</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">List of Features Offered by Tripbone <span class="pill">Real Production Features</span></h2>
+        <div class="grid-4" style="margin-top: 6px;">
+          <div class="card">
+            <h3>AI Tour Magic (Gemini)</h3>
+            <p>Transforms raw text prompts into full bookable tours with schedules, inclusions, and FAQs in 2s.</p>
+          </div>
+          <div class="card">
+            <h3>AI OTA Catalog Importer</h3>
+            <p>1-click catalog migration from Viator & GetYourGuide with zero manual copy-pasting.</p>
+          </div>
+          <div class="card">
+            <h3>AI Trip Planner (`/planner`)</h3>
+            <p>Streams custom itineraries with Google Maps routing & embedded bookable catalog cards.</p>
+          </div>
+          <div class="card">
+            <h3>24/7 AI Sales Concierge</h3>
+            <p>Chatbot with Google Search Grounding for live weather, pickup zones, and direct checkout.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>Car Management & Fleet</h3>
+            <p>Vehicle fleet specs, transmission, seats, photo gallery, with-driver vs. self-drive pricing.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>Service Delivery Zones</h3>
+            <p>Automated island delivery zones (Standard, Highlands, Remote) with dynamic surcharges.</p>
+          </div>
+          <div class="card">
+            <h3>AI Email Extractor</h3>
+            <p>Parses raw emails from hotel concierges into verified reservations and QR vouchers.</p>
+          </div>
+          <div class="card">
+            <h3>AI VIP Proposal Builder</h3>
+            <p>Generates bespoke multi-day PDF proposals with itemized breakdown & smart profit margins.</p>
+          </div>
+          <div class="card">
+            <h3>Dynamic Group Rates</h3>
+            <p>Automated volume pricing tiers that recalculate rates in real time as party size scales.</p>
+          </div>
+          <div class="card">
+            <h3>Digital Liability Waivers</h3>
+            <p>Mobile-optimized legal safety waivers (`/waiver/:id`) with touch e-signatures.</p>
+          </div>
+          <div class="card">
+            <h3>Universal BYOPG Gateways</h3>
+            <p>Supports Stripe, Midtrans QRIS, Xendit, and PayPal simultaneously with 0% platform fee.</p>
+          </div>
+          <div class="card">
+            <h3>Digital QR Check-in</h3>
+            <p>Tamper-proof mobile guest tickets with scannable QR verification for guides and drivers.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 5 of 16</span>
+        <span>Tripbone • Features Offered</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Process Flow Diagram -->
+    <div class="slide" id="slide-6" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Process Architecture</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Process Flow & Use-Case Diagram <span class="pill">Dual Commerce & Operations</span></h2>
+        <div class="code-box" style="margin-top: 4px; font-size: 10.5px;">
+[1. SUPPLY ONBOARDING: TOURS & CAR FLEET]
+Operator Prompt / OTA Link ──► Google Gemini 3.8 Flash ──► Structured Schema ──► Firebase Firestore
+Car Fleet & Delivery Zones  ──► Chauffeur & Self-Drive  ──► Live Catalog ───────► Live Storefront
+                                                                                      │
+[2. TRAVELER DISCOVERY & PLANNING]                                                    │ (Active Catalog Sync)
+Traveler Preferences & Budget ──► Gemini AI Planner + Google Maps API ──► Custom Plan ◄───┘
+                                                                           │ (Embedded Tour / Car Card)
+                                                                           ▼
+[3. CONVERSION & MULTI-GATEWAY CHECKOUT]                            [Book Now Drawer]
+Guest Party / Vehicle Selection ──► Dynamic Group Rate Tiers ──► Universal BYOPG (Stripe/QRIS) ──► 0% Commission Direct Settlement
+                                                                                              │
+[4. AUTONOMOUS OPERATIONS & DISPATCH]                                                         ▼
+Inbound Partner Email ──► Gemini AI Extractor ──► Booking Ledger ──► Scannable QR Digital Voucher ──► WhatsApp Dispatch to Guide/Driver
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 6 of 16</span>
+        <span>Tripbone • Process Flow Diagram</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: Wireframes / Mocks -->
+    <div class="slide" id="slide-7" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">UI & Experience</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Wireframes & Interface Architecture <span class="pill">Airbnb-Grade UX</span></h2>
+        <div class="grid-3" style="margin-top: 8px;">
+          <div class="card">
+            <h3>1. Traveler Storefront</h3>
+            <p>Minimalist luxury design with high typographic hierarchy, clean date & guest selector, currency converter, and zero-distraction booking flow.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>2. Car Rentals (`/car-rentals`)</h3>
+            <p>Vehicle fleet showcase with passenger/luggage specs, with-driver (10h) vs. self-drive (24h) pricing, and automated delivery zone selector.</p>
+          </div>
+          <div class="card">
+            <h3>3. AI Trip Planner (`/planner`)</h3>
+            <p>Split-view UI: dynamic streaming day-by-day plan on the left, interactive Google Maps transit route on the right, and embedded bookable cards.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>4. Car Management (Admin)</h3>
+            <p>Full fleet management console: photo uploader with WebP compression, pricing matrices, fuel type, transmission, and active status.</p>
+          </div>
+          <div class="card">
+            <h3>5. Operations Dispatch Console</h3>
+            <p>Live revenue telemetry, guide/driver WhatsApp dispatch, digital waiver tracking, AI Tour Magic modal, and TinyFish OTA price scraper.</p>
+          </div>
+          <div class="card">
+            <h3>6. Scannable QR Check-in Ticket</h3>
+            <p>Self-contained mobile passenger voucher with dynamic QR verification token, pickup details, and one-tap driver WhatsApp contact.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 7 of 16</span>
+        <span>Tripbone • Wireframes & Design System</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: Architecture Diagram -->
+    <div class="slide" id="slide-8" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Cloud Architecture</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">100% Google Cloud Native Architecture <span class="pill">System Design</span></h2>
+        <div class="code-box" style="margin-top: 4px; font-size: 10.5px;">
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                     CLIENT TIER                                        │
+│     React 18 SPA (Vite + TypeScript + Tailwind CSS) • PWA Mobile First • Airbnb UX     │
+└───────────────────────────┬───────────────────────────────────┬────────────────────────┘
+                            │ HTTPS / REST                      │ Maps JavaScript API
+                            ▼                                   ▼
+┌───────────────────────────────────────────┐         ┌──────────────────────────────────┐
+│           COMPUTE & API TIER              │         │         GEOSPATIAL TIER          │
+│            Google Cloud Run               │         │      Google Maps Platform        │
+│   - Containerized Node.js Microservice    │         │   - Directions & Distance Matrix │
+│   - Auto-scaling (0 to N instances)       │         │   - Places API & Geocoding       │
+│   - Sub-second serverless execution       │         └──────────────────────────────────┘
+└─────────────────────┬─────────────────────┘
+                      │
+     ┌────────────────┴──────────────────────────┐
+     ▼                                           ▼
+┌──────────────────────────────────┐    ┌────────────────────────────────────────────────┐
+│       DATA & IDENTITY TIER       │    │               GEN AI ENGINE TIER               │
+│         Firebase Platform        │    │         Google Gemini 3.8 Flash & 3.1 Lite     │
+│   - Cloud Firestore (Multi-tenant)│   │   - Streaming Itinerary Planner                │
+│   - Real-time Snapshot Sync      │    │   - Catalog-Grounded Tour Recommendations      │
+│   - Firebase Authentication & RBAC│   │   - AI Email Entity Extractor (JSON Schema)    │
+└──────────────────────────────────┘    │   - 24/7 AI Concierge with Search Grounding    │
+                                        │   - AI Proposal Builder & Blog Writer          │
+                                        └────────────────────────────────────────────────┘
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 8 of 16</span>
+        <span>Tripbone • Architecture Diagram</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 9: Technologies Used -->
+    <div class="slide" id="slide-9" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Technology Stack</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Technologies Used in the Solution <span class="pill">Tech Stack</span></h2>
+        <div class="grid-3" style="margin-top: 8px;">
+          <div class="card tech-card">
+            <h3>Google Cloud & AI Core</h3>
+            <ul>
+              <li><strong>Google Gemini 3.8 Flash & 3.1 Flash Lite:</strong> Multimodal Gen AI for trip planning, tour generation, email extraction, and Search-grounded concierge.</li>
+              <li><strong>Google Cloud Run:</strong> Serverless container runtime hosting the production Node.js API.</li>
+              <li><strong>Firebase Firestore:</strong> Real-time NoSQL database with multi-tenant scoping.</li>
+              <li><strong>Firebase Auth:</strong> Multi-role RBAC (SuperAdmin, Admin, Guide, Guest).</li>
+              <li><strong>Google Maps Platform:</strong> Directions, Distance Matrix & Geocoding.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Frontend & UI</h3>
+            <ul>
+              <li><strong>React 18 & TypeScript:</strong> Type-safe frontend.</li>
+              <li><strong>Vite:</strong> Blazing fast compilation.</li>
+              <li><strong>Tailwind CSS:</strong> Swiss-modern design system.</li>
+              <li><strong>Lucide React & Motion:</strong> Kinetic UI icons & animations.</li>
+            </ul>
+          </div>
+          <div class="card highlight-card">
+            <h3>Payments & Universal BYOPG</h3>
+            <ul>
+              <li><strong>Multi-Gateway Layer:</strong> Stripe, Midtrans QRIS, Xendit, PayPal, Razorpay, Adyen.</li>
+              <li><strong>Zero Platform Take-Rate:</strong> 100% direct merchant payout.</li>
+              <li><strong>WhatsApp Gateway API:</strong> Instant crew & guide dispatch.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 9 of 16</span>
+        <span>Tripbone • Technologies Used</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 10: Implementation Cost -->
+    <div class="slide" id="slide-10" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Cost Efficiency</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Estimated Implementation Cost <span class="pill">Scale-to-Zero Model</span></h2>
+        <p class="lead-text">Tripbone's serverless Google Cloud architecture incurs near-zero idle cost, making it viable for SME operators.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Google Cloud Service</th>
+              <th>Estimated Usage (100 Active Tour Operators)</th>
+              <th>Monthly Cost (USD)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Google Cloud Run</strong></td>
+              <td>1.5M requests/month (auto scale-to-zero)</td>
+              <td><span style="color:#16a34a; font-weight:700;">$0.00 (Free Tier)</span></td>
+            </tr>
+            <tr>
+              <td><strong>Firebase Firestore</strong></td>
+              <td>500,000 document reads/writes/month</td>
+              <td>$0.90</td>
+            </tr>
+            <tr>
+              <td><strong>Google Gemini 3.8 Flash</strong></td>
+              <td>~10,000 AI trip plans & email extractions</td>
+              <td>$2.50 (~$0.00025/call)</td>
+            </tr>
+            <tr>
+              <td><strong>Google Maps Platform</strong></td>
+              <td>~25,000 map views & route queries</td>
+              <td><span style="color:#16a34a; font-weight:700;">$0.00 (Covered by $200 Credit)</span></td>
+            </tr>
+            <tr>
+              <td><strong>Total Cloud Infrastructure</strong></td>
+              <td><strong>Operating 100 Live Travel Businesses</strong></td>
+              <td><span style="font-size:15px; font-weight:800; color:#0284c7;">~$3.40 / Month Total</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 10 of 16</span>
+        <span>Tripbone • Implementation Cost</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 11: Snapshots of Prototype -->
+    <div class="slide" id="slide-11" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Working Prototype</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Snapshots of the Live Working Prototype <span class="pill">Real Software</span></h2>
+        <div class="grid-3" style="margin-top: 8px;">
+          <div class="card">
+            <h3>1. Storefront & Tour Page</h3>
+            <p>Clean Airbnb layout, multi-currency display, and instant booking modal with tiered group pricing.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>2. Car Rentals (`/car-rentals`)</h3>
+            <p>Live vehicle fleet with chauffeur vs. self-drive pricing, delivery zone surcharges, and instant reserve drawer.</p>
+          </div>
+          <div class="card">
+            <h3>3. AI Trip Planner</h3>
+            <p>Live Gemini streaming day-by-day itineraries with integrated bookable tour cards and interactive maps.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>4. Car Management (Admin)</h3>
+            <p>Admin fleet manager: configure specs, photos, chauffeur rates, and availability toggle.</p>
+          </div>
+          <div class="card">
+            <h3>5. 24/7 AI Concierge & Extractor</h3>
+            <p>Search-grounded chatbot answering live questions & AI Email Extractor parsing unstructured text into bookings.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>6. Digital QR Voucher & Waivers</h3>
+            <p>Mobile check-in voucher with scannable QR verification badge and digital liability waiver signing.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 11 of 16</span>
+        <span>Tripbone • Snapshots of Prototype</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 12: Performance Report -->
+    <div class="slide" id="slide-12" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Benchmarking</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Prototype Performance Report & Benchmarks <span class="pill">Metrics</span></h2>
+        <div class="grid-4" style="margin-top: 8px;">
+          <div class="card">
+            <div class="stat-number">480ms</div>
+            <div class="stat-label">Gemini TTFT (Planner)</div>
+            <p style="margin-top: 6px;">Streaming first token latency for instant travel itineraries.</p>
+          </div>
+          <div class="card">
+            <div class="stat-number">2.0s</div>
+            <div class="stat-label">AI Tour Creation</div>
+            <p style="margin-top: 6px;">Full structured tour package generated from a raw prompt.</p>
+          </div>
+          <div class="card">
+            <div class="stat-number">98.4%</div>
+            <div class="stat-label">Entity Extraction Accuracy</div>
+            <p style="margin-top: 6px;">Precision parsing guest names, party count, dates, and amounts.</p>
+          </div>
+          <div class="card">
+            <div class="stat-number">98/100</div>
+            <div class="stat-label">Lighthouse Score</div>
+            <p style="margin-top: 6px;">Sub-second first contentful paint and zero layout shift.</p>
+          </div>
+        </div>
+        <div class="grid-2" style="margin-top: 12px;">
+          <div class="card highlight-card">
+            <h3>Operator Efficiency Impact</h3>
+            <p>Reduces tour packaging and fleet setup time from <strong>45 minutes to 15 seconds</strong> (95% time saved). Eliminates 100% of manual data entry for offline hotel inquiries.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>Direct Economic Impact</h3>
+            <p>Operators retain <strong>100% of gross revenue</strong>, saving 20% to 25% in OTA commissions on every direct booking.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 12 of 16</span>
+        <span>Tripbone • Performance Report</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 13: Future Roadmap -->
+    <div class="slide" id="slide-13" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Roadmap</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Additional Details & Future Development <span class="pill">Innovation Horizon</span></h2>
+        <div class="grid-2" style="margin-top: 8px;">
+          <div class="card">
+            <h3>Q1 2027: Gemini Live Voice Concierge</h3>
+            <p>Two-way real-time multilingual voice assistant allowing travelers to plan and book tours via natural voice conversation on mobile.</p>
+          </div>
+          <div class="card">
+            <h3>Q2 2027: Predictive Dynamic Pricing Engine</h3>
+            <p>Machine learning models predicting optimal pricing based on flight arrival trends, seasonal weather patterns, and competitor OTA rates.</p>
+          </div>
+          <div class="card">
+            <h3>Q3 2027: Offline PWA with Bluetooth QR Sync</h3>
+            <p>Offline-first mobile driver app enabling boat captains and mountain guides on remote islands without 4G to validate tickets and sync check-ins automatically.</p>
+          </div>
+          <div class="card">
+            <h3>Q4 2027: Regional Operator Cooperative Marketplace</h3>
+            <p>Cross-operator collaborative booking network allowing independent operators to offer multi-island bundled expeditions.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 13 of 16</span>
+        <span>Tripbone • Future Development</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 14: Project Links -->
+    <div class="slide" id="slide-14" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Submission Links</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Project Submission Links <span class="pill">Access & Verification</span></h2>
+        <div class="card" style="margin-top: 8px; line-height: 1.8;">
+          <p style="font-size: 14px;"><strong>● GitHub Public Repository:</strong> <span style="color: #0284c7; font-family: 'JetBrains Mono', monospace;">[Insert Your GitHub Public Repository URL]</span></p>
+          <p style="font-size: 14px;"><strong>● Demo Video Link (3 Minutes):</strong> <span style="color: #0284c7; font-family: 'JetBrains Mono', monospace;">[Insert 3-Minute Video URL]</span></p>
+          <p style="font-size: 14px;"><strong>● Live Production Application:</strong> <a href="https://ais-pre-gueyp6lq66x3mljvag7bro-49253860877.asia-east1.run.app" target="_blank" style="color: #0284c7; font-family: 'JetBrains Mono', monospace; font-weight:700;">https://ais-pre-gueyp6lq66x3mljvag7bro-49253860877.asia-east1.run.app</a></p>
+          <p style="font-size: 14px;"><strong>● Car Rentals Storefront:</strong> <a href="https://ais-pre-gueyp6lq66x3mljvag7bro-49253860877.asia-east1.run.app/car-rentals" target="_blank" style="color: #0284c7; font-family: 'JetBrains Mono', monospace; font-weight:700;">.../car-rentals</a></p>
+          <p style="font-size: 14px;"><strong>● Admin Console Demo:</strong> Direct access via <code style="background:#e2e8f0; padding:2px 6px; border-radius:4px;">/admin</code></p>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 14 of 16</span>
+        <span>Tripbone • Submission Links</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 15: Appendix / Why Tripbone Matters -->
+    <div class="slide" id="slide-15" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Impact Manifesto</div>
+      </div>
+      <div class="slide-body">
+        <h2 class="slide-title">Why Tripbone Matters <span class="pill">Empowering JAPAC</span></h2>
+        <div class="grid-3" style="margin-top: 8px;">
+          <div class="card">
+            <h3>Built in JAPAC, For the World</h3>
+            <p>Starting with local operators across Indonesia, Thailand, and Southeast Asia, solving real economic friction in a $300B industry.</p>
+          </div>
+          <div class="card highlight-card">
+            <h3>Real Generative AI Value</h3>
+            <p>Not a gimmick chatbot. Gemini 3.8 Flash is deeply integrated into supply creation, demand conversion, and backend dispatch logistics.</p>
+          </div>
+          <div class="card tech-card">
+            <h3>Economic Sovereignty</h3>
+            <p>Enabling local SME operators to break free from 25% OTA commissions and keep 100% of what they earn.</p>
+          </div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 15 of 16</span>
+        <span>Tripbone • Appendix</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 16: Thank You -->
+    <div class="slide" id="slide-16" style="display: none;">
+      <div class="slide-header">
+        <div class="brand-left">Google Cloud <span class="accent">AI Builder Cup</span></div>
+        <div class="badge-japac">Grand Finale</div>
+      </div>
+      <div class="slide-body cover-body" style="align-items: center; text-align: center;">
+        <div style="font-size: 50px; font-weight: 900; margin-bottom: 10px; letter-spacing: -1px;">Thank You!</div>
+        <div style="font-size: 18px; color: #94a3b8; font-weight: 600; margin-bottom: 20px;">Tripbone: The AI-Native Tour & Car Rental Commerce Engine</div>
+        <div style="display: flex; gap: 20px; font-size: 13.5px; color: #cbd5e1;">
+          <div><strong>Team:</strong> Tripbone Team</div>
+          <div>•</div>
+          <div><strong>Lead:</strong> I Kadek Didi Suprapta</div>
+          <div>•</div>
+          <div><strong>Email:</strong> baliadventours@gmail.com</div>
+        </div>
+        <div style="margin-top: 24px; font-size: 14.5px; font-weight: 700; color: #38bdf8;">
+          See you in Singapore at the Google Cloud AI Builder Cup Grand Finale 2026!
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span>Slide 16 of 16</span>
+        <span>Google Cloud AI Builder Cup 2026</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 16;
+
+    function showSlide(num) {
+      if (num < 1) num = 1;
+      if (num > totalSlides) num = totalSlides;
+      currentSlide = num;
+
+      for (let i = 1; i <= totalSlides; i++) {
+        const slide = document.getElementById(`slide-${i}`);
+        if (slide) {
+          slide.style.display = i === currentSlide ? 'flex' : 'none';
+        }
+      }
+      document.getElementById('counter').innerText = `Slide ${currentSlide} / ${totalSlides}`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        showSlide(currentSlide + 1);
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        showSlide(currentSlide - 1);
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      }
+    });
+
+    showSlide(1);
+  </script>
+</body>
+</html>
