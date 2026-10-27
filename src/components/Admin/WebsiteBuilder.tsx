@@ -604,9 +604,12 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
 
       await setDoc(doc(db, 'website_builder', tenantId), sanitizeFirestoreData(syncedSettings));
 
-      // Sync topNav, mainNav presets, mobilePreset, joytimeCustomization, androidAppSettings, and footer embed to general settings
+      // Sync topNav, mainNav, hero, featuredTours, guestFavorites presets, mobilePreset, joytimeCustomization, androidAppSettings, and footer embed to general settings
       const topNavBlock = settings.blocks?.find(b => b.id === 'topNav');
       const mainNavBlock = settings.blocks?.find(b => b.id === 'mainNav');
+      const heroBlock = settings.blocks?.find(b => b.id === 'hero');
+      const featuredBlock = settings.blocks?.find(b => b.id === 'featuredTours');
+      const guestFavBlock = settings.blocks?.find(b => b.id === 'guestFavorites');
       
       const generalRef = doc(db, 'settings', tenantId);
       const generalSnap = await getDoc(generalRef);
@@ -615,6 +618,9 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
         ...(existingGen.sectionStyles || {}),
         ...(topNavBlock?.design ? { topNav: topNavBlock.design } : {}),
         ...(mainNavBlock?.design ? { mainNav: mainNavBlock.design } : {}),
+        ...(heroBlock?.design ? { hero: heroBlock.design } : {}),
+        ...(featuredBlock?.design ? { featuredTours: featuredBlock.design } : {}),
+        ...(guestFavBlock?.design ? { guestFavorites: guestFavBlock.design } : {}),
       };
       await setDoc(generalRef, sanitizeFirestoreData({ 
         ...existingGen, 
@@ -638,11 +644,24 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
     }
   };
 
+  const autoSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const updateBlock = (id: string, updates: Partial<BlockConfig>) => {
-    if (!settings) return;
-    setSettings({
-      ...settings,
-      blocks: settings.blocks.map(b => b.id === id ? { ...b, ...updates } : b)
+    setSettings(prev => {
+      if (!prev) return prev;
+      const nextSettings: WebsiteBuilderSettings = {
+        ...prev,
+        blocks: prev.blocks.map(b => b.id === id ? { ...b, ...updates } : b)
+      };
+      if (tenantId) {
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(() => {
+          setDoc(doc(db, 'website_builder', tenantId), sanitizeFirestoreData(nextSettings), { merge: true }).catch(err => {
+            console.error('Auto-save website_builder error:', err);
+          });
+        }, 400);
+      }
+      return nextSettings;
     });
   };
 
@@ -1157,7 +1176,7 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
                   </div>
 
                   {/* Headline, Subheadline & Description (For Hero and featured blocks) */}
-                  {['hero', 'featuredTours', 'guestFavorites'].includes(block.id) && (
+                  {block.id === 'hero' && (
                     <div className="grid grid-cols-1 gap-6 pt-4 border-t border-gray-100">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -1190,6 +1209,43 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
                           className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none resize-none font-medium"
                           placeholder="e.g. Curated expeditions and private custom adventures with trusted local hosts..."
                         />
+                      </div>
+                    </div>
+                  )}
+
+                  {['featuredTours', 'guestFavorites'].includes(block.id) && (
+                    <div className="grid grid-cols-1 gap-5 pt-4 border-t border-gray-100">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Section Headline (Main Title)</label>
+                          <input
+                            type="text"
+                            value={block.headline || ''}
+                            onChange={(e) => updateBlock(block.id, { headline: e.target.value })}
+                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none font-semibold text-sm"
+                            placeholder={block.id === 'featuredTours' ? 'Featured Tours' : 'Guest Favorites'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Section Subheadline (Subtitle)</label>
+                          <input
+                            type="text"
+                            value={block.subheadline || ''}
+                            onChange={(e) => updateBlock(block.id, { subheadline: e.target.value })}
+                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none font-medium text-sm"
+                            placeholder={block.id === 'featuredTours' ? 'Curated expeditions our guests love most' : 'The most loved tours by our explorers'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Eyebrow Badge Text</label>
+                          <input
+                            type="text"
+                            value={block.badge || ''}
+                            onChange={(e) => updateBlock(block.id, { badge: e.target.value })}
+                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none font-medium text-sm"
+                            placeholder={block.id === 'featuredTours' ? 'Handpicked experiences' : 'Top rated experiences'}
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1595,6 +1651,22 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
                       )}
                     </div>
                   )}
+
+                  <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <span className="text-xs text-gray-500 font-medium flex items-center gap-1.5">
+                      <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      Changes to this section are synced automatically
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl flex items-center gap-2 hover:bg-orange-700 transition shadow-xs"
+                    >
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      Save Section
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1641,7 +1713,7 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Section Headline</label>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Section Headline (Main Title)</label>
                       <input
                         type="text"
                         value={featBlock.headline || ''}
@@ -1650,15 +1722,27 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
                         placeholder="Featured Tours"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Section Subheadline</label>
-                      <input
-                        type="text"
-                        value={featBlock.subheadline || ''}
-                        onChange={(e) => updateBlock('featuredTours', { subheadline: e.target.value })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/20"
-                        placeholder="Curated expeditions our guests love most"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Section Subheadline</label>
+                        <input
+                          type="text"
+                          value={featBlock.subheadline || ''}
+                          onChange={(e) => updateBlock('featuredTours', { subheadline: e.target.value })}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/20"
+                          placeholder="Curated expeditions our guests love most"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Eyebrow Badge Text</label>
+                        <input
+                          type="text"
+                          value={featBlock.badge || ''}
+                          onChange={(e) => updateBlock('featuredTours', { badge: e.target.value })}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/20"
+                          placeholder="Handpicked experiences"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1698,7 +1782,7 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Section Headline</label>
+                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Section Headline (Main Title)</label>
                       <input
                         type="text"
                         value={favBlock.headline || ''}
@@ -1707,15 +1791,27 @@ export default function WebsiteBuilder({ initialTab = 'blocks' }: WebsiteBuilder
                         placeholder="Guest Favorites"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Section Subheadline</label>
-                      <input
-                        type="text"
-                        value={favBlock.subheadline || ''}
-                        onChange={(e) => updateBlock('guestFavorites', { subheadline: e.target.value })}
-                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/20"
-                        placeholder="The most loved tours by our explorers"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Section Subheadline</label>
+                        <input
+                          type="text"
+                          value={favBlock.subheadline || ''}
+                          onChange={(e) => updateBlock('guestFavorites', { subheadline: e.target.value })}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/20"
+                          placeholder="The most loved tours by our explorers"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Eyebrow Badge Text</label>
+                        <input
+                          type="text"
+                          value={favBlock.badge || ''}
+                          onChange={(e) => updateBlock('guestFavorites', { badge: e.target.value })}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-primary/20"
+                          placeholder="Top rated experiences"
+                        />
+                      </div>
                     </div>
                   </div>
 

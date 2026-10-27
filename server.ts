@@ -162,8 +162,8 @@ export async function createServer() {
         console.warn("[Server Track Booking] Direct lookup notice:", directErr);
       }
 
-      // 2. If not found, scan matching bookings
-      if (!foundBooking) {
+      // 2. If not found, scan matching bookings (require at least 6 chars for suffix matching to prevent enumeration)
+      if (!foundBooking && targetCleanId.length >= 6) {
         const snapshot = await adminDb.collection("bookings").get();
         for (const d of snapshot.docs) {
           const data = d.data();
@@ -175,8 +175,7 @@ export async function createServer() {
               currentDocId.endsWith(targetCleanId) ||
               String(data.id || "").toLowerCase() === targetCleanId ||
               String(data.bookingReference || "").toLowerCase() === targetCleanId ||
-              currentDocId.slice(-8) === targetCleanId.slice(-8) ||
-              targetCleanId.endsWith(currentDocId.slice(-8))
+              (targetCleanId.length >= 8 && currentDocId.slice(-8) === targetCleanId.slice(-8))
             ) {
               foundBooking = { id: d.id, ...data };
               break;
@@ -221,6 +220,23 @@ export async function createServer() {
       }
 
       const file = req.file;
+      const allowedMimeTypes = new Set([
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "image/avif",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+        "application/pdf"
+      ]);
+      const lowerMime = (file.mimetype || "").toLowerCase();
+      if (!allowedMimeTypes.has(lowerMime)) {
+        return res.status(400).json({
+          error: "Unsupported file type. Only standard images (JPEG, PNG, WebP, GIF, AVIF, ICO) and PDFs are permitted."
+        });
+      }
       const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9_.-]/g, "_");
 
       // Generate a robust unique ID resembling a Firestore doc ID
@@ -375,9 +391,14 @@ export async function createServer() {
           else if (buffer.slice(8, 12).toString("ascii") === "WEBP") mimetype = "image/webp";
         }
 
-        res.setHeader("Content-Type", mimetype);
+        const safeMime = (mimetype.includes("html") || mimetype.includes("svg") || mimetype.includes("script") || mimetype.includes("xml"))
+          ? "application/octet-stream"
+          : mimetype;
+        res.setHeader("Content-Type", safeMime);
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'");
         res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
-        console.log(`[Serve File] Served from local disk: ${id}, MimeType: ${mimetype}`);
+        console.log(`[Serve File] Served from local disk: ${id}, MimeType: ${safeMime}`);
         return res.end(buffer);
       }
 
@@ -464,7 +485,13 @@ export async function createServer() {
         console.warn(`[Serve File] Warning: Failed to write local cache: ${cacheError.message}`);
       }
 
-      res.setHeader("Content-Type", data.mimetype || "application/octet-stream");
+      const rawMime = data.mimetype || "application/octet-stream";
+      const safeMime = (rawMime.includes("html") || rawMime.includes("svg") || rawMime.includes("script") || rawMime.includes("xml"))
+        ? "application/octet-stream"
+        : rawMime;
+      res.setHeader("Content-Type", safeMime);
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'");
       res.setHeader("Cache-Control", "public, max-age=31536000"); // Cache for 1 year
       console.log(`[Serve File] Served and cached from Firestore base64 backup: ${id}`);
       return res.end(buffer);
@@ -779,6 +806,10 @@ export async function createServer() {
       const tourIdRaw = reqTourId || (req.query.tourId as string) || "all";
       const tourId = tourIdRaw.endsWith(".ics") ? tourIdRaw.replace(/\.ics$/, "") : tourIdRaw;
 
+      if (tenantId === "global" && (tourId === "all" || tourId === "feed")) {
+        return res.status(403).send("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Tripbone//Restricted//EN\r\nEND:VCALENDAR");
+      }
+
       console.log(`[iCal Feed] Generating .ics calendar feed for tenant: ${tenantId}, tour: ${tourId}`);
 
       const db = getAdminDb();
@@ -866,8 +897,8 @@ export async function createServer() {
         icsLines.push(`DTSTAMP:${nowFormatted}`);
         icsLines.push(`DTSTART:${formatIcsDate(isNaN(startDt.getTime()) ? new Date() : startDt)}`);
         icsLines.push(`DTEND:${formatIcsDate(isNaN(endDt.getTime()) ? new Date() : endDt)}`);
-        icsLines.push(`SUMMARY:${channelName} - ${tourName} (${pax} Pax: ${customerName})`);
-        icsLines.push(`DESCRIPTION:OTA Booking Ref: ${bookingRef}\\nCustomer: ${customerName}\\nEmail: ${email}\\nPhone: ${phone}\\nPax Count: ${pax}\\nChannel: ${channelName}\\nStatus: ${statusStr}`);
+        icsLines.push(`SUMMARY:${channelName} - ${tourName} (${pax} Pax)`);
+        icsLines.push(`DESCRIPTION:OTA Booking Ref: ${bookingRef}\\nPax Count: ${pax}\\nChannel: ${channelName}\\nStatus: ${statusStr}`);
         icsLines.push(`LOCATION:${b.pickupLocation || b.location || 'Bali, Indonesia'}`);
         icsLines.push(`STATUS:${statusStr === "PAID" || statusStr === "CONFIRMED" ? "CONFIRMED" : "TENTATIVE"}`);
         icsLines.push("END:VEVENT");
@@ -2383,12 +2414,10 @@ export async function createServer() {
         console.log(`[API /api/auth/forgot-password-otp] Password reset OTP sent to: ${emailLower}`);
         return res.json({ success: true, message: "A secure verification code has been sent to your email address." });
       } else {
-        console.warn("[API /api/auth/forgot-password-otp] No active email provider configured. Fallback code logged.");
-        return res.json({ 
-          success: true, 
-          fallback: true,
-          otp, // Return the OTP to client for preview testing in case there is no email provider configured
-          message: "A verification code has been generated. Use the code on screen or in server logs to continue." 
+        console.warn("[API /api/auth/forgot-password-otp] No active email provider configured.");
+        return res.status(503).json({ 
+          success: false, 
+          error: "Email service is not configured to dispatch verification codes. Please sign in with Google or contact support." 
         });
       }
     } catch (error: any) {
@@ -2620,42 +2649,71 @@ export async function createServer() {
         }
       }
 
-      // If OTP mode is used
+      // Require either a valid database OTP or a verified Firebase Auth password before issuing a custom token
+      let isAuthenticated = false;
+
       if (otp) {
         const enteredOtp = otp.toString().trim().toUpperCase();
-        const isEmergencyMasterCode = (enteredOtp === '999888' || enteredOtp === '888999');
+        if (enteredOtp.length >= 6) {
+          // Check passwordResetCodes and password_resets collections
+          for (const colName of ['passwordResetCodes', 'password_resets']) {
+            const resetSnap = await db.collection(colName)
+              .where('email', '==', emailLower)
+              .where('otp', '==', enteredOtp)
+              .limit(5)
+              .get();
 
-        let isOtpValid = isEmergencyMasterCode;
-        if (!isOtpValid) {
-          const resetSnap = await db.collection('passwordResetCodes')
-            .where('email', '==', emailLower)
-            .where('otp', '==', enteredOtp)
-            .where('used', '==', false)
-            .limit(1)
-            .get();
-
-          if (!resetSnap.empty) {
-            const resetDoc = resetSnap.docs[0];
-            const data = resetDoc.data();
-            const createdAt = new Date(data.createdAt).getTime();
-            const now = Date.now();
-            if (now - createdAt <= 15 * 60 * 1000) {
-              isOtpValid = true;
-              await resetDoc.ref.update({ used: true, usedAt: new Date().toISOString() });
+            for (const resetDoc of resetSnap.docs) {
+              const data = resetDoc.data();
+              if (data.used === true) continue;
+              const createdAt = data.createdAt ? new Date(data.createdAt).getTime() : 0;
+              const expiresAt = data.expiresAt ? new Date(data.expiresAt).getTime() : (createdAt + 15 * 60 * 1000);
+              if (Date.now() <= expiresAt) {
+                isAuthenticated = true;
+                await resetDoc.ref.update({ used: true, usedAt: new Date().toISOString() });
+                break;
+              }
             }
+            if (isAuthenticated) break;
           }
         }
 
-        if (!isOtpValid) {
+        if (!isAuthenticated) {
           return res.status(400).json({ error: "Invalid or expired 6-digit verification code." });
         }
-      } else if (password && password.length >= 6) {
-        // Synchronize Auth password
+      } else if (password && typeof password === 'string' && password.length >= 6) {
+        // Verify password against Firebase Identity Toolkit REST API
+        let apiKey = process.env.VITE_FIREBASE_API_KEY || '';
         try {
-          await admin.auth().updateUser(uid, { password: password });
-        } catch (passErr) {
-          console.warn("[Superadmin Login] Could not update password in Auth:", passErr);
+          const configPath = path.resolve(process.cwd(), "firebase-applet-config.json");
+          if (fs.existsSync(configPath)) {
+            const cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+            if (cfg.apiKey) apiKey = cfg.apiKey;
+          }
+        } catch (_) {}
+
+        if (!apiKey) {
+          return res.status(401).json({ error: "Client-side authentication required." });
         }
+
+        try {
+          const signInRes = await axios.post(
+            `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
+            { email: emailLower, password, returnSecureToken: true },
+            { timeout: 6000 }
+          );
+          if (signInRes.data && signInRes.data.idToken) {
+            isAuthenticated = true;
+          }
+        } catch (verifyErr: any) {
+          return res.status(401).json({ error: "Invalid password for this administrator account." });
+        }
+      } else {
+        return res.status(400).json({ error: "Valid password or 6-digit OTP verification code is required." });
+      }
+
+      if (!isAuthenticated) {
+        return res.status(401).json({ error: "Authentication failed." });
       }
 
       // Ensure superadmin profile exists in Firestore
@@ -2668,7 +2726,7 @@ export async function createServer() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      // Generate custom token for instant, seamless authentication
+      // Generate custom token for authenticated superadmin
       const customToken = await admin.auth().createCustomToken(uid, { role: 'superadmin' });
       return res.json({ success: true, customToken, uid, email: emailLower });
     } catch (err: any) {
@@ -2677,7 +2735,7 @@ export async function createServer() {
     }
   });
 
-  // API Route: Image Proxy to bypass Hotlinking/Referer protections on CDNs
+  // API Route: Image Proxy to bypass Hotlinking/Referer protections on CDNs (with SSRF guard)
   app.get("/api/image-proxy", async (req, res) => {
     try {
       const imageUrl = req.query.url as string;
@@ -2686,23 +2744,45 @@ export async function createServer() {
       }
 
       const parsedUrl = new URL(imageUrl);
+      if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+        return res.status(400).send("Invalid URL protocol");
+      }
+
+      const hostLower = parsedUrl.hostname.toLowerCase();
+      if (
+        hostLower === "localhost" ||
+        hostLower === "0.0.0.0" ||
+        hostLower === "[::1]" ||
+        hostLower.endsWith(".internal") ||
+        hostLower.endsWith(".local") ||
+        /^127\./.test(hostLower) ||
+        /^10\./.test(hostLower) ||
+        /^192\.168\./.test(hostLower) ||
+        /^169\.254\./.test(hostLower) ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostLower)
+      ) {
+        return res.status(403).send("Forbidden target host");
+      }
+
       console.log(`[Image Proxy] Fetching: ${imageUrl}`);
 
       const response = await axios.get(imageUrl, {
         responseType: 'arraybuffer',
+        maxRedirects: 3,
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           "Referer": `${parsedUrl.protocol}//${parsedUrl.host}/`,
-          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+          "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
         },
         timeout: 10000
       });
 
       let contentType = response.headers["content-type"] || "image/jpeg";
-      if (typeof contentType !== "string") {
+      if (typeof contentType !== "string" || !contentType.toLowerCase().startsWith("image/") || contentType.toLowerCase().includes("svg")) {
         contentType = "image/jpeg";
       }
       res.setHeader("Content-Type", contentType);
+      res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("Cache-Control", "public, max-age=2592000"); // 30 days caching
 
       res.send(Buffer.from(response.data));
@@ -4893,6 +4973,17 @@ export async function createServer() {
         return res.status(400).json({ error: "Missing required parameters (tenantId, plan)" });
       }
 
+      const authHeader = req.headers.authorization;
+      const idToken = authHeader?.startsWith("Bearer ") ? authHeader.split("Bearer ")[1] : undefined;
+      if (idToken) {
+        const access = await verifyTenantAccess(idToken, tenantId);
+        if (!access.allowed) {
+          return res.status(403).json({ error: access.error || "Forbidden: Not authorized to modify this tenant plan." });
+        }
+      } else {
+        return res.status(401).json({ error: "Authentication token required to modify subscription plan." });
+      }
+
       const effectiveInterval = getEffectiveInterval(plan, billingInterval || 'monthly');
       const planName = formatPlanName(plan, [], effectiveInterval);
       const planPrice = getPlanPrice(plan, effectiveInterval, []);
@@ -5368,6 +5459,12 @@ export async function createServer() {
   
   app.post("/api/mail/test", async (req: any, res: any) => {
     try {
+      const authHeader = req.headers.authorization;
+      const idToken = authHeader?.startsWith("Bearer ") ? authHeader.split("Bearer ")[1] : undefined;
+      const authResult = await verifyAdmin(idToken);
+      if (!authResult.isAdmin) {
+        return res.status(403).json({ error: "Forbidden: Admin authorization required to send test emails." });
+      }
       const { toEmail, subject, textPart, htmlPart } = req.body;
       if (!toEmail) return res.status(400).json({ error: "Missing toEmail" });
       const result = await sendEmail({ toEmail, subject, textPart, htmlPart });

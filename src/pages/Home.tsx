@@ -541,12 +541,14 @@ export default function Home() {
     : (settings?.heroYoutubeUrl ? getYoutubeId(settings.heroYoutubeUrl) : null);
 
   useEffect(() => {
-    const q = query(
-      collection(db, "tours"),
-      where("status", "in", ["published", "active"]),
-    );
+    const q = query(collection(db, "tours"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tourData = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Tour);
+      const tourData = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }) as Tour)
+        .filter((t) => {
+          const st = (t.status || "published").toLowerCase();
+          return st !== "draft" && st !== "archived";
+        });
       tourData.sort((a, b) => {
         const getTimestampMillis = (val: any): number => {
           if (!val) return 0;
@@ -558,11 +560,10 @@ export default function Home() {
         };
         return getTimestampMillis(b.createdAt) - getTimestampMillis(a.createdAt);
       });
-      const limitedTours = tourData.slice(0, 24);
-      setTours(limitedTours);
+      setTours(tourData);
       setLoading(false);
       try {
-        localStorage.setItem("bali_cached_tours", JSON.stringify(limitedTours));
+        localStorage.setItem("bali_cached_tours", JSON.stringify(tourData.slice(0, 48)));
       } catch (e) {}
     }, (error) => {
       console.error("[Home Tours Snapshot Error]:", error);
@@ -1698,25 +1699,38 @@ export default function Home() {
   };
 
   const renderFeaturedTours = () => {
+    const featuredBlock = getBlock('featuredTours');
+    const hasCustomSelection = Boolean(featuredBlock?.tourIds && featuredBlock.tourIds.length > 0);
     const featuredToursData = getFeaturedToursData();
+    const featuredHeadline = (featuredBlock?.headline && featuredBlock.headline.trim()) ? featuredBlock.headline.trim() : null;
+    const featuredSubheadline = (featuredBlock?.subheadline && featuredBlock.subheadline.trim())
+      ? featuredBlock.subheadline.trim()
+      : ((featuredBlock?.description && featuredBlock.description.trim()) ? featuredBlock.description.trim() : null);
+    const featuredBadge = (featuredBlock?.badge && featuredBlock.badge.trim()) ? featuredBlock.badge.trim() : null;
+
     switch (featuredToursStyle) {
       case "airbnb-classic":
       case "airbnb-fluid":
         return (
           <section className="container mx-auto px-4 py-16 lg:px-8">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-bold text-gray-900">
-                Featured Guest Favorites
-              </h2>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {featuredHeadline || "Featured Guest Favorites"}
+                </h2>
+                {featuredSubheadline && (
+                  <p className="text-sm text-gray-500 mt-1">{featuredSubheadline}</p>
+                )}
+              </div>
               <Link
                 to={getPrimaryButtonLink("/tours")}
                 className="text-sm font-bold text-gray-900 underline underline-offset-4"
               >
-                Show all (50+)
+                Show all ({tours.length || "50+"})
               </Link>
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {featuredToursData.slice(0, 4).map((tour, index) => (
+              {(hasCustomSelection ? featuredToursData : featuredToursData.slice(0, 4)).map((tour, index) => (
                 <TourCard
                   key={tour.id}
                   tour={tour}
@@ -1736,18 +1750,22 @@ export default function Home() {
               <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-8 text-white">
                 <div>
                   <span className="text-orange-400 font-black text-[10px] uppercase tracking-widest">
-                    The Core Collection
+                    {featuredBadge || "The Core Collection"}
                   </span>
                   <h2 className="text-4xl md:text-6xl font-black tracking-tighter mt-4 mb-6 italic uppercase">
-                    Selected <br /> Units
+                    {featuredHeadline || (
+                      <>
+                        Selected <br /> Units
+                      </>
+                    )}
                   </h2>
                 </div>
                 <p className="text-lg text-white/50 font-medium max-w-xs">
-                  Optimized for high-impact experiences.
+                  {featuredSubheadline || "Optimized for high-impact experiences."}
                 </p>
               </div>
               <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                {featuredToursData.slice(0, 3).map((tour, index) => (
+                {(hasCustomSelection ? featuredToursData : featuredToursData.slice(0, 3)).map((tour, index) => (
                   <TourCard
                     key={tour.id}
                     tour={tour}
@@ -1769,11 +1787,20 @@ export default function Home() {
               <div className="flex flex-col md:flex-row gap-20">
                 <div className="md:w-1/4">
                   <span className="text-[10px] font-black uppercase tracking-[0.5em] text-gray-300 mb-8 block">
-                    Collection / 1
+                    {featuredBadge || "Collection / 1"}
                   </span>
-                  <h2 className="text-4xl font-black text-gray-900 uppercase tracking-tighter leading-none mb-8">
-                    Selected <br /> Works
+                  <h2 className="text-4xl font-black text-gray-900 uppercase tracking-tighter leading-none mb-4">
+                    {featuredHeadline || (
+                      <>
+                        Selected <br /> Works
+                      </>
+                    )}
                   </h2>
+                  {featuredSubheadline && (
+                    <p className="text-xs text-gray-500 font-medium mb-8 leading-relaxed">
+                      {featuredSubheadline}
+                    </p>
+                  )}
                   <Link
                     to={getPrimaryButtonLink("/tours")}
                     className="text-[10px] font-black uppercase tracking-[0.3em] border-b border-gray-900 pb-1"
@@ -1783,8 +1810,8 @@ export default function Home() {
                 </div>
                 <div className="md:w-3/4">
                   <div className="grid gap-12 sm:grid-cols-2">
-                    {featuredToursData.slice(0, 4).map((tour, index) => (
-                      <div key={tour.id} className="group cursor-pointer">
+                    {(hasCustomSelection ? featuredToursData : featuredToursData.slice(0, 4)).map((tour, index) => (
+                      <Link key={tour.id} to={`/tour/${tour.slug || tour.id}`} className="group cursor-pointer block">
                         <div className="aspect-[16/10] bg-gray-50 overflow-hidden mb-6 filter grayscale group-hover:grayscale-0 transition-all duration-700">
                           <img
                             src={tour.gallery?.[0] || tour.featuredImage}
@@ -1803,7 +1830,7 @@ export default function Home() {
                         >
                           {tour.title}
                         </h3>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 </div>
@@ -1819,12 +1846,21 @@ export default function Home() {
             <div className="container mx-auto px-4">
               <div className="text-center mb-24">
                 <h2 className="text-4xl md:text-7xl font-serif text-gray-900 tracking-widest uppercase mb-6 leading-none">
-                  The <br /> Portfolio
+                  {featuredHeadline || (
+                    <>
+                      The <br /> Portfolio
+                    </>
+                  )}
                 </h2>
+                {featuredSubheadline && (
+                  <p className="text-sm text-gray-500 font-serif italic mb-6 max-w-xl mx-auto">
+                    {featuredSubheadline}
+                  </p>
+                )}
                 <div className="h-px w-20 bg-amber-400 mx-auto" />
               </div>
               <div className="grid gap-24">
-                {featuredToursData.slice(0, 3).map((tour, index) => (
+                {(hasCustomSelection ? featuredToursData : featuredToursData.slice(0, 3)).map((tour, index) => (
                   <div
                     key={tour.id}
                     className={cn(
@@ -1850,7 +1886,7 @@ export default function Home() {
                         {tour.description}
                       </p>
                       <Link
-                        to={`/tour/${tour.slug}`}
+                        to={`/tour/${tour.slug || tour.id}`}
                         className="inline-block text-[10px] font-black uppercase tracking-[0.4em] text-gray-900 border-b border-amber-400 pb-2"
                       >
                         Discover the story
@@ -1869,14 +1905,19 @@ export default function Home() {
           <section className="py-24 container mx-auto px-4">
             <div className="mb-20">
               <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest mb-4 inline-block">
-                Product Line
+                {featuredBadge || "Product Line"}
               </span>
               <h2 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter mt-2">
-                Unified Experiences
+                {featuredHeadline || "Unified Experiences"}
               </h2>
+              {featuredSubheadline && (
+                <p className="mt-3 text-gray-500 font-medium text-base">
+                  {featuredSubheadline}
+                </p>
+              )}
             </div>
             <div className="grid gap-px bg-gray-100 border border-gray-100 rounded-[2rem] overflow-hidden">
-              {featuredToursData.slice(0, 6).map((tour, index) => (
+              {(hasCustomSelection ? featuredToursData : featuredToursData.slice(0, 6)).map((tour, index) => (
                 <div
                   key={tour.id}
                   className="bg-white p-12 hover:bg-gray-50 transition-colors flex flex-col md:flex-row items-center gap-12 group"
@@ -1893,7 +1934,7 @@ export default function Home() {
                     </p>
                   </div>
                   <Link
-                    to={`/tour/${tour.slug}`}
+                    to={`/tour/${tour.slug || tour.id}`}
                     className="px-8 py-4 bg-gray-950 text-white rounded-xl text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     Deploy
@@ -1912,14 +1953,14 @@ export default function Home() {
                 <div className="flex items-center gap-2 mb-3">
                   <Leaf className="h-4 w-4 text-primary" />
                   <span className="text-primary text-xs font-black">
-                    Handpicked experiences
+                    {featuredBadge || "Handpicked experiences"}
                   </span>
                 </div>
                 <h2 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight leading-none">
-                  Featured Tours
+                  {featuredHeadline || "Featured Tours"}
                 </h2>
                 <p className="mt-3 text-gray-500 font-medium text-lg">
-                  Curated expeditions our guests love most
+                  {featuredSubheadline || "Curated expeditions our guests love most"}
                 </p>
               </div>
               <Link
@@ -1942,11 +1983,9 @@ export default function Home() {
                       </div>
                     </div>
                   ))
-                : featuredToursData
-                    .slice(0, 8)
-                    .map((tour, index) => (
-                      <TourCard key={tour.id} tour={tour} index={index} />
-                    ))}
+                : (hasCustomSelection ? featuredToursData : featuredToursData.slice(0, 8)).map((tour, index) => (
+                    <TourCard key={tour.id} tour={tour} index={index} />
+                  ))}
             </div>
           </section>
         );

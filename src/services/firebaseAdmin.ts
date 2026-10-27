@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import axios from "axios";
+import crypto from "crypto";
 import { tenantLogger } from "../lib/tenantLogger.js";
 
 let adminApp: any = null;
@@ -688,6 +689,23 @@ export async function writeDocViaRest(collectionName: string, docId: string, dat
   }
 }
 
+let cachedGoogleCerts: { certs: Record<string, string>; expiresAt: number } | null = null;
+
+async function fetchGooglePublicCerts(): Promise<Record<string, string>> {
+  if (cachedGoogleCerts && Date.now() < cachedGoogleCerts.expiresAt) {
+    return cachedGoogleCerts.certs;
+  }
+  const res = await axios.get(
+    "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com",
+    { timeout: 5000 }
+  );
+  cachedGoogleCerts = {
+    certs: res.data || {},
+    expiresAt: Date.now() + 50 * 60 * 1000
+  };
+  return cachedGoogleCerts.certs;
+}
+
 export async function safeVerifyIdToken(idToken: string): Promise<any> {
   // First, try standard firebase-admin verification
   try {
@@ -695,23 +713,28 @@ export async function safeVerifyIdToken(idToken: string): Promise<any> {
     const decoded = await admin.auth().verifyIdToken(idToken);
     return decoded;
   } catch (err: any) {
-    console.warn("[Firebase Admin] verifyIdToken failed, using secure JWT parsing fallback:", err.message || err);
+    console.warn("[Firebase Admin] verifyIdToken failed, attempting cryptographic public-key verification fallback:", err.message || err);
   }
 
-  // Fallback: decode and verify claims
+  // Fallback: Cryptographically verify RSA-SHA256 signature against Google's public x509 certificates
   try {
     const parts = idToken.split('.');
     if (parts.length !== 3) {
       throw new Error("Invalid JWT token format");
     }
-    const payloadPart = parts[1];
-    // Base64Url decode
-    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = Buffer.from(base64, 'base64').toString('utf8');
-    const decoded = JSON.parse(jsonPayload);
+    const [headerPart, payloadPart, signaturePart] = parts;
+    const headerJson = Buffer.from(headerPart.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    const payloadJson = Buffer.from(payloadPart.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    const header = JSON.parse(headerJson);
+    const decoded = JSON.parse(payloadJson);
 
-    // Get current projectId to verify
+    if (header.alg !== 'RS256' || !header.kid) {
+      throw new Error("Invalid JWT header algorithm or missing key ID");
+    }
+
+    // Resolve projectId and apiKey
     let projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
+    let apiKey = process.env.VITE_FIREBASE_API_KEY || '';
     try {
       const rootPath = process.cwd();
       const possiblePaths = [
@@ -719,51 +742,70 @@ export async function safeVerifyIdToken(idToken: string): Promise<any> {
         path.resolve(rootPath, "..", "firebase-applet-config.json"),
         path.resolve(rootPath, "public", "firebase-applet-config.json")
       ];
-      let configPath = possiblePaths[0];
       for (const p of possiblePaths) {
         if (fs.existsSync(p)) {
-          configPath = p;
+          const config = JSON.parse(fs.readFileSync(p, "utf-8"));
+          if (config.projectId) projectId = config.projectId;
+          if (config.apiKey) apiKey = config.apiKey;
           break;
-        }
-      }
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-        if (config.projectId) {
-          projectId = config.projectId;
         }
       }
     } catch (e) {}
 
-    // Verify token claims with a soft warning fallback if mismatched
-    if (!projectId) {
-      console.warn("[Firebase Admin JWT Fallback] No project ID found to verify aud/iss, proceeding with decode only.");
-    } else {
-      const expectedAud = projectId;
-      const expectedIss = `https://securetoken.google.com/${projectId}`;
-      
-      if (decoded.aud !== expectedAud) {
-        console.warn(`[Firebase Admin JWT Fallback] WARNING: Token audience mismatch. Expected: ${expectedAud}, Got: ${decoded.aud}. Proceeding because of fallback resilience.`);
+    // 1. Verify RSA-SHA256 signature against Google's x509 certificate for header.kid
+    let signatureVerified = false;
+    try {
+      const certs = await fetchGooglePublicCerts();
+      const cert = certs[header.kid];
+      if (cert) {
+        const verifier = crypto.createVerify('RSA-SHA256');
+        verifier.update(`${headerPart}.${payloadPart}`);
+        verifier.end();
+        const sigBuffer = Buffer.from(signaturePart.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+        signatureVerified = verifier.verify(cert, sigBuffer);
       }
-      if (decoded.iss !== expectedIss) {
-        console.warn(`[Firebase Admin JWT Fallback] WARNING: Token issuer mismatch. Expected: ${expectedIss}, Got: ${decoded.iss}. Proceeding because of fallback resilience.`);
+    } catch (certErr: any) {
+      console.warn("[Firebase Admin JWT Fallback] x509 cert lookup warning:", certErr.message);
+    }
+
+    // 2. If x509 check wasn't reachable, verify via Google Identity Toolkit accounts:lookup REST API
+    if (!signatureVerified && apiKey) {
+      const lookupRes = await axios.post(
+        `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
+        { idToken },
+        { timeout: 5000 }
+      );
+      const userObj = lookupRes.data?.users?.[0];
+      if (userObj && userObj.localId && userObj.localId === (decoded.sub || decoded.uid)) {
+        signatureVerified = true;
       }
     }
 
-    // Verify expiration with a 5-minute (300 seconds) clock-skew tolerance
+    if (!signatureVerified) {
+      throw new Error("Cryptographic signature verification failed for ID token");
+    }
+
+    // 3. Enforce audience, issuer, and expiration claims
+    if (projectId) {
+      const expectedAud = projectId;
+      const expectedIss = `https://securetoken.google.com/${projectId}`;
+      if (decoded.aud !== expectedAud || decoded.iss !== expectedIss) {
+        throw new Error(`Token audience/issuer mismatch for project ${projectId}`);
+      }
+    }
+
     const now = Math.floor(Date.now() / 1000);
-    if (decoded.exp && (decoded.exp + 300) < now) {
+    if (!decoded.exp || (decoded.exp + 60) < now) {
       throw new Error("Token expired");
     }
 
-    // Map claim format to expected verifyIdToken output format if needed
     if (decoded.sub && !decoded.uid) {
       decoded.uid = decoded.sub;
     }
 
-    console.log(`[Firebase Admin JWT Fallback] Successfully verified token for user: ${decoded.email}`);
     return decoded;
   } catch (fallbackErr: any) {
-    console.error("[Firebase Admin JWT Fallback] Fallback parsing failed:", fallbackErr.message || fallbackErr);
+    console.error("[Firebase Admin JWT Fallback] Cryptographic verification failed:", fallbackErr.message || fallbackErr);
     throw new Error(`Token verification failed: ${fallbackErr.message || fallbackErr}`);
   }
 }

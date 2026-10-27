@@ -12,17 +12,20 @@ export default function TopRatedTours() {
   const [tours, setTours] = useState<Tour[]>([]);
   const { settings, builderSettings } = useSettings();
 
+  const guestFavsBlock = builderSettings?.blocks?.find(b => b.id === 'guestFavorites');
   const themeMode = settings?.themeMode || 'default';
-  const styleId = themeMode === 'custom' ? settings?.sectionStyles?.guestFavorites : 'default';
+  const styleId = guestFavsBlock?.design || (themeMode === 'custom' ? settings?.sectionStyles?.guestFavorites : 'default') || 'default';
 
   useEffect(() => {
     // Fetch active tours and filter/sort client-side to prevent composite index errors
-    const q = query(
-      collection(db, 'tours'), 
-      where('status', 'in', ['published', 'active'])
-    );
+    const q = query(collection(db, 'tours'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const allTours = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Tour));
+      const allTours = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() } as Tour))
+        .filter(t => {
+          const st = (t.status || 'published').toLowerCase();
+          return st !== 'draft' && st !== 'archived';
+        });
       
       const guestFavsBlock = builderSettings?.blocks?.find(b => b.id === 'guestFavorites');
       if (guestFavsBlock?.tourIds && guestFavsBlock.tourIds.length > 0) {
@@ -46,9 +49,11 @@ export default function TopRatedTours() {
     return unsubscribe;
   }, [builderSettings]);
 
-  const guestFavsBlock = builderSettings?.blocks?.find(b => b.id === 'guestFavorites');
-  const headline = guestFavsBlock?.headline || "Guest Favorites";
-  const subheadline = guestFavsBlock?.subheadline || "The most loved tours by our explorers";
+  const headline = (guestFavsBlock?.headline && guestFavsBlock.headline.trim()) ? guestFavsBlock.headline.trim() : "Guest Favorites";
+  const subheadline = (guestFavsBlock?.subheadline && guestFavsBlock.subheadline.trim())
+    ? guestFavsBlock.subheadline.trim()
+    : ((guestFavsBlock?.description && guestFavsBlock.description.trim()) ? guestFavsBlock.description.trim() : "The most loved tours by our explorers");
+  const badgeText = (guestFavsBlock?.badge && guestFavsBlock.badge.trim()) ? guestFavsBlock.badge.trim() : "Top rated experiences";
 
   const renderContent = () => {
     switch (styleId) {
@@ -170,7 +175,7 @@ export default function TopRatedTours() {
             <div className="mb-12 text-center">
               <div className="flex items-center justify-center gap-2 mb-3">
                 <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
-                <span className="text-gray-400 text-sm font-bold tracking-widest">Top rated experiences</span>
+                <span className="text-gray-400 text-sm font-bold tracking-widest">{badgeText}</span>
               </div>
               <h2 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight leading-none">{headline}</h2>
               <p className="mt-4 text-gray-500 font-medium text-lg">{subheadline}</p>

@@ -229,18 +229,30 @@ export default function JoyTimeMobilePreset({
     return Array.from(locMap.values()).slice(0, 6);
   }, [tours]);
 
-  // Top Trends Tours (sorted by booked count or rating popularity)
+  const featuredBlock = builderSettings?.blocks?.find(b => b.id === 'featuredTours');
+  const featuredMobileTitle = (featuredBlock?.headline && featuredBlock.headline.trim() && featuredBlock.headline.trim() !== 'Featured Tours')
+    ? featuredBlock.headline.trim()
+    : 'Top Trends';
+
+  // Top Trends / Featured Tours (uses explicitly selected Featured Tours if configured, otherwise sorted by popularity)
   const topTrendsTours = useMemo(() => {
-    let list = [...tours];
+    let list: Tour[] = [];
+    if (featuredBlock?.tourIds && featuredBlock.tourIds.length > 0) {
+      const tourMap = new Map(tours.map(t => [t.id, t]));
+      const selected = featuredBlock.tourIds.map(id => tourMap.get(id)).filter((t): t is Tour => !!t);
+      list = selected.length > 0 ? selected : [...tours];
+    } else {
+      list = [...tours].sort((a, b) => {
+        const countA = (a as any).bookedCount || ((a.rating || 4.8) * 120);
+        const countB = (b as any).bookedCount || ((b.rating || 4.8) * 120);
+        return countB - countA;
+      });
+    }
     if (selectedLocation !== 'all') {
       list = list.filter(t => t.location?.toLowerCase().includes(selectedLocation.toLowerCase()));
     }
-    return list.sort((a, b) => {
-      const countA = (a as any).bookedCount || ((a.rating || 4.8) * 120);
-      const countB = (b as any).bookedCount || ((b.rating || 4.8) * 120);
-      return countB - countA;
-    });
-  }, [tours, selectedLocation]);
+    return list;
+  }, [tours, selectedLocation, featuredBlock?.tourIds]);
 
   // Recently Viewed Tours data
   const recentlyViewedTours = useMemo(() => {
@@ -1412,7 +1424,7 @@ export default function JoyTimeMobilePreset({
       {/* 4. TOP TRENDS SECTION (IMG_3849.png) */}
       <div className="px-4 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-black text-gray-900">Top Trends</h3>
+          <h3 className="text-base font-black text-gray-900">{featuredMobileTitle}</h3>
           <button
             type="button"
             onClick={() => setActiveSubView('product')}
@@ -1434,7 +1446,7 @@ export default function JoyTimeMobilePreset({
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             )}
           >
-            Top Trends
+            {featuredMobileTitle}
           </button>
           {dynamicLocations.map(loc => (
             <button
@@ -1455,7 +1467,7 @@ export default function JoyTimeMobilePreset({
 
         {/* 2-Column Product Grid with Crown Badges */}
         <div className="grid grid-cols-2 gap-3 pt-1">
-          {topTrendsTours.slice(0, 4).map((tour, idx) => renderProductCard(tour, idx))}
+          {(featuredBlock?.tourIds && featuredBlock.tourIds.length > 0 ? topTrendsTours : topTrendsTours.slice(0, 4)).map((tour, idx) => renderProductCard(tour, idx))}
         </div>
       </div>
 

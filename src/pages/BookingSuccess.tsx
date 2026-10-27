@@ -25,10 +25,16 @@ export default function BookingSuccess() {
   const [commSettings, setCommSettings] = useState<any>(null);
 
   useEffect(() => {
-    // Fetch communication settings for WA templates
-    const unsub = onSnapshot(doc(db, 'communicationSettings', 'global'), (snap) => {
-      if (snap.exists()) setCommSettings(snap.data());
-    });
+    // Fetch communication settings for WA templates (restricted to admins; guests use fallback template)
+    const unsub = onSnapshot(
+      doc(db, 'communicationSettings', 'global'),
+      (snap) => {
+        if (snap.exists()) setCommSettings(snap.data());
+      },
+      () => {
+        // Guests use default WhatsApp inquiry template
+      }
+    );
     return () => unsub();
   }, []);
 

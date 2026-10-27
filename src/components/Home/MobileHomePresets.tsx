@@ -411,23 +411,37 @@ export default function MobileHomePresets({
         </div>
 
         {/* 2. FEATURED TOURS: 2-COLUMN GRID (Klook Signature Layout) */}
-        <div className="px-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-4 bg-orange-500 rounded-full" />
-              <h3 className="text-base font-black text-gray-900 tracking-tight">
-                Featured Tours
-              </h3>
-            </div>
-            <Link to="/tours" className="text-xs font-bold text-orange-600 hover:underline flex items-center gap-0.5">
-              View All <LucideIcons.ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
+        {(() => {
+          const featBlock = builderSettings?.blocks?.find(b => b.id === 'featuredTours');
+          const featTitle = (featBlock?.headline && featBlock.headline.trim()) ? featBlock.headline.trim() : 'Featured Tours';
+          let displayFeatured = filteredTours;
+          if (selectedCategory === 'all' && featBlock?.tourIds && featBlock.tourIds.length > 0) {
+            const tourMap = new Map(tours.map(t => [t.id, t]));
+            const picked = featBlock.tourIds.map(id => tourMap.get(id)).filter((t): t is Tour => !!t);
+            if (picked.length > 0) displayFeatured = picked;
+          } else {
+            displayFeatured = filteredTours.slice(0, 6);
+          }
+          return (
+            <div className="px-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-4 bg-orange-500 rounded-full" />
+                  <h3 className="text-base font-black text-gray-900 tracking-tight">
+                    {featTitle}
+                  </h3>
+                </div>
+                <Link to="/tours" className="text-xs font-bold text-orange-600 hover:underline flex items-center gap-0.5">
+                  View All <LucideIcons.ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {filteredTours.slice(0, 6).map(tour => renderKlookTwoColumnCard(tour))}
-          </div>
-        </div>
+              <div className="grid grid-cols-2 gap-3">
+                {displayFeatured.map(tour => renderKlookTwoColumnCard(tour))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 3. CAR RENTAL & PRIVATE DRIVER SHOWCASE CARD */}
         <div className="px-4">

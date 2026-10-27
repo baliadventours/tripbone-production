@@ -305,12 +305,10 @@ service cloud.firestore {
       allow get: if isValidId(tourId);
       allow list: if true;
       allow create: if isAdmin() || isStaff() || (
-        ((isSupplier() && 
-          incoming().supplierId == request.auth.uid &&
-          incoming().status == 'pending'
-         ) || (
-          incoming().tenantId != null
-         )) && isValidTour(incoming()) && (incoming().createdAt == request.time || incoming().createdAt != null)
+        isSupplier() && 
+        incoming().supplierId == request.auth.uid &&
+        incoming().status == 'pending' &&
+        isValidTour(incoming()) && (incoming().createdAt == request.time || incoming().createdAt != null)
       );
       allow update: if isAdmin() || isStaff() || (
         (isSupplier() && 
@@ -408,15 +406,41 @@ service cloud.firestore {
         (incoming().get('tenantId', '') == getUserData().get('tenantId', '') || (resource != null && resource.data.get('tenantId', '') == getUserData().get('tenantId', '')))
       );
       
-      // Regular signup creation
-      allow create: if isOwner(userId) && 
-                      (!incoming().keys().hasAny(['role']) || incoming().role in ['customer', 'admin']) && 
-                      (incoming().createdAt == request.time || incoming().createdAt != null);
+      // Regular signup creation (admin self-registration only allowed if user owns the matching tenant workspace)
+      allow create: if isOwner(userId) && (
+                      !incoming().keys().hasAny(['role']) ||
+                      incoming().role == 'customer' ||
+                      isSuperAdmin() ||
+                      (
+                        incoming().role == 'admin' &&
+                        incoming().get('tenantId', '') is string &&
+                        incoming().get('tenantId', '').size() > 0 &&
+                        exists(/databases/$(database)/documents/tenants/$(incoming().get('tenantId', ''))) &&
+                        (
+                          get(/databases/$(database)/documents/tenants/$(incoming().get('tenantId', ''))).data.get('adminEmail', '') == request.auth.token.email ||
+                          get(/databases/$(database)/documents/tenants/$(incoming().get('tenantId', ''))).data.get('email', '') == request.auth.token.email
+                        )
+                      )
+                    ) && (incoming().createdAt == request.time || incoming().createdAt != null);
       
-      // Identity maintenance & tenant customer registration completion
-      allow update: if isOwner(userId) && 
-                      (!incoming().keys().hasAny(['role']) || incoming().role == existing().get('role', 'customer') || incoming().role in ['customer', 'admin']) &&
-                      (!incoming().keys().hasAny(['email']) || incoming().email == existing().get('email', '') || incoming().email == request.auth.token.email);
+      // Identity maintenance & tenant customer registration completion (cannot self-promote to admin of another tenant)
+      allow update: if isOwner(userId) && (
+                      !incoming().keys().hasAny(['role']) ||
+                      incoming().role == existing().get('role', 'customer') ||
+                      incoming().role == 'customer' ||
+                      isSuperAdmin() ||
+                      (
+                        incoming().role == 'admin' &&
+                        incoming().get('tenantId', '') is string &&
+                        incoming().get('tenantId', '').size() > 0 &&
+                        exists(/databases/$(database)/documents/tenants/$(incoming().get('tenantId', ''))) &&
+                        (
+                          get(/databases/$(database)/documents/tenants/$(incoming().get('tenantId', ''))).data.get('adminEmail', '') == request.auth.token.email ||
+                          get(/databases/$(database)/documents/tenants/$(incoming().get('tenantId', ''))).data.get('email', '') == request.auth.token.email
+                        )
+                      )
+                    ) &&
+                    (!incoming().keys().hasAny(['email']) || incoming().email == existing().get('email', '') || incoming().email == request.auth.token.email);
       
       // Allow users to delete their own account or clean up merged temporary profiles matching their email
       allow delete: if isSuperAdmin() || (
@@ -459,11 +483,12 @@ service cloud.firestore {
       }
     }
     match /communicationSettings/{id} { 
-      allow read: if true; 
-      allow write: if isSuperAdmin() || (
+      // Protected: Contains tenant/platform Gemini API keys, Resend/Mailjet keys, and WhatsApp tokens
+      allow read, write: if isSuperAdmin() || isAdmin() || (
         isSignedIn() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        (getUserData().role == 'admin' || getUserData().role == 'superadmin')
+        (getUserData().role == 'admin' || getUserData().role == 'superadmin') &&
+        (getUserData().get('tenantId', null) == null || id == getUserData().tenantId || id == 'global')
       ); 
     }
     match /email_logs/{id} { allow read: if isAdmin(); allow write: if false; }
@@ -484,8 +509,8 @@ service cloud.firestore {
     match /posts/{postId} {
       allow get: if true;
       allow list: if true;
-      allow write: if isAdmin() || (isSignedIn() && incoming().tenantId != null) || (isSignedIn() && resource.data.tenantId != null);
-      allow delete: if isAdmin() || (isSignedIn() && resource.data.tenantId != null);
+      allow write: if isSuperAdmin() || isAdmin() || isStaff();
+      allow delete: if isSuperAdmin() || isAdmin();
     }
 
     // --- SaaS Posts (Blog) ---
