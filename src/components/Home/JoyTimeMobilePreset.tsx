@@ -1801,7 +1801,7 @@ export default function JoyTimeMobilePreset({
 
       {/* 8. SERVICE BOTTOM SHEET (IMG_3852.png) */}
       {isServiceSheetOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
@@ -1809,23 +1809,23 @@ export default function JoyTimeMobilePreset({
           />
 
           {/* Drawer Content */}
-          <div className="relative w-full bg-white rounded-t-3xl p-5 shadow-2xl z-10 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300 text-left">
+          <div className="relative w-full bg-white rounded-t-3xl pt-4 px-5 pb-10 shadow-2xl z-10 max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-300 text-left">
             {/* Drag Pill Handle */}
             <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
 
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-6">
               <h3 className="text-base font-black text-gray-900">Service</h3>
               <button
                 type="button"
                 onClick={() => setIsServiceSheetOpen(false)}
-                className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 cursor-pointer"
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 cursor-pointer"
               >
                 <LucideIcons.X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Circular Category Icons Grid */}
-            <div className="grid grid-cols-4 gap-y-5 gap-x-2">
+            <div className="grid grid-cols-4 gap-y-6 gap-x-3 pb-4">
               {categories.map((cat, idx) => {
                 const Icon = getCategoryIconComponent(cat.name);
                 const color = pastelColors[idx % pastelColors.length];
@@ -1839,16 +1839,16 @@ export default function JoyTimeMobilePreset({
                       onSelectCategory(cat.id);
                       navigate(`/tours?category=${encodeURIComponent(cat.slug || cat.id)}`);
                     }}
-                    className="flex flex-col items-center gap-1.5 cursor-pointer group"
+                    className="flex flex-col items-center gap-2 cursor-pointer group"
                   >
                     <div className={cn(
-                      "w-13 h-13 rounded-full flex items-center justify-center transition-all shadow-2xs group-hover:scale-105",
+                      "w-14 h-14 rounded-full flex items-center justify-center transition-all shadow-2xs group-hover:scale-105 shrink-0",
                       color.bg,
                       color.text
                     )}>
                       <Icon className="w-6 h-6" />
                     </div>
-                    <span className="text-[11px] font-bold text-gray-700 text-center line-clamp-1 max-w-[70px]">
+                    <span className="text-[11px] font-bold text-gray-700 text-center leading-tight line-clamp-2 max-w-[76px]">
                       {cat.name}
                     </span>
                   </button>
