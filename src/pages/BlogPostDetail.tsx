@@ -49,7 +49,7 @@ export default function BlogPostDetail() {
   const contentRef = useRef<HTMLDivElement>(null);
 
   const { isMaster, tenantId, tenant } = useTenant();
-  const isSaaSBlog = isMaster || !tenantId || tenant?.isSaaS || tenantId === 'global' || window.location.hostname.includes('tripbone.com');
+  const isSaaSBlog = isMaster || !tenantId || Boolean(tenant?.isSaaS) || tenantId === 'global';
 
   const siteUrl = window.location.origin;
   const siteName = settings?.siteName || (isSaaSBlog ? 'Tripbone' : 'Bali Adventours');

@@ -279,14 +279,92 @@ export async function checkWhapiHealth(token?: string, apiUrl?: string) {
 }
 
 /**
- * Sends a WhatsApp message via OpenWA (wa-automate) API, WABA Cloud API, or Whapi.cloud
+ * Sends a WhatsApp message via WAutomation Private Server (wautomation.ai.studio)
+ * Documentation: POST https://wautomation.ai.studio/api/v1/messages/send
+ */
+export async function sendWautomationMessage(
+  payload: WhatsAppPayload,
+  config: {
+    apiKey?: string;
+    baseUrl?: string;
+    instanceId?: string;
+  }
+) {
+  const apiKey = config.apiKey || process.env.WAUTOMATION_API_KEY;
+  const baseUrl = (config.baseUrl || process.env.WAUTOMATION_BASE_URL || 'https://wautomation.ai.studio').replace(/\/+$/, '');
+
+  if (!apiKey) {
+    console.warn("[WhatsApp WAutomation] API Key is missing.");
+    return { success: false, error: 'WAutomation API Key is missing. Please provide your API Key from your wautomation dashboard.' };
+  }
+
+  const cleanApiKey = apiKey.replace(/^Bearer\s+/i, '').trim();
+
+  // Format phone number to E.164 digits-only format required by WAutomation
+  const parts = payload.number.split('@');
+  let rawNumber = parts[0];
+  let digitsOnly = rawNumber.replace(/\D/g, '');
+  if (digitsOnly.startsWith('620')) {
+    digitsOnly = '62' + digitsOnly.slice(3);
+  } else if (digitsOnly.startsWith('0')) {
+    digitsOnly = '62' + digitsOnly.slice(1);
+  } else if (digitsOnly.startsWith('8')) {
+    digitsOnly = '62' + digitsOnly;
+  }
+
+  const endpoint = `${baseUrl}/api/v1/messages/send`;
+  const body: any = {
+    to: digitsOnly,
+    text: payload.message || ''
+  };
+
+  if (config.instanceId && config.instanceId.trim()) {
+    body.instance_id = config.instanceId.trim();
+  }
+
+  // If payload contains an attached file/document/image
+  if (payload.file) {
+    body.media = payload.file;
+    if (payload.filename) {
+      body.filename = payload.filename;
+    }
+  }
+
+  try {
+    console.log(`[WhatsApp WAutomation] Dispatching message to ${digitsOnly} via ${endpoint}`);
+    const response = await axios.post(endpoint, body, {
+      headers: {
+        'Authorization': `Bearer ${cleanApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+
+    const data = response.data;
+    if (response.status >= 200 && response.status < 300) {
+      return { success: true, provider: 'wautomation', data };
+    }
+    throw new Error(data?.error?.message || `Status code ${response.status}`);
+  } catch (err: any) {
+    let errMsg = err.message || 'Unknown error';
+    if (err.response && err.response.data) {
+      errMsg = err.response.data?.error?.message || 
+        (typeof err.response.data === 'object' ? JSON.stringify(err.response.data) : String(err.response.data));
+    }
+    console.error(`[WhatsApp WAutomation Error]:`, errMsg);
+    return { success: false, error: `WAutomation dispatch failed: ${errMsg}` };
+  }
+}
+
+/**
+ * Sends a WhatsApp message via OpenWA (wa-automate) API, WABA Cloud API, Whapi.cloud, or WAutomation
  */
 export async function sendWhatsAppMessage(
   payload: WhatsAppPayload, 
   tokenOverride?: string, 
   baseUrlOverride?: string, 
   sessionId?: string,
-  providerOverride?: 'openwa' | 'waba' | 'whapi',
+  providerOverride?: 'openwa' | 'waba' | 'whapi' | 'wautomation',
   wabaConfig?: {
     accessToken?: string;
     phoneNumberId?: string;
@@ -300,8 +378,21 @@ export async function sendWhatsAppMessage(
     apiUrl?: string;
     channelId?: string;
     proxyUrl?: string;
+  },
+  wautomationConfig?: {
+    apiKey?: string;
+    baseUrl?: string;
+    instanceId?: string;
   }
 ) {
+  if (providerOverride === 'wautomation') {
+    return sendWautomationMessage(payload, {
+      apiKey: tokenOverride || wautomationConfig?.apiKey,
+      baseUrl: baseUrlOverride || wautomationConfig?.baseUrl,
+      instanceId: sessionId || wautomationConfig?.instanceId
+    });
+  }
+
   if (providerOverride === 'whapi') {
     return sendWhapiMessage(payload, {
       token: tokenOverride || whapiConfig?.token,

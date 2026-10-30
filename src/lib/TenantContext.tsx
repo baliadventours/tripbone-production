@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { collection, query, where, getDocs, limit, doc, getDoc, onSnapshot } from '@/src/lib/firebase';
+import { collection, query, where, getDocs, limit, doc, getDoc, onSnapshot, rawCollection, rawQuery, rawWhere, rawGetDocs, rawDoc, rawGetDoc } from '@/src/lib/firebase';
 import { db, setActiveTenantId as setFirebaseTenantId } from './firebase';
 import { tenantLogger } from './tenantLogger';
 import { Tenant } from '../types';
@@ -384,10 +384,19 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         // 2. If not resolved via impersonateId, query by slug or customDomain
         if (!tenantData) {
           let tenantQuery;
+          const normalizeDomainValue = (val: string) =>
+            String(val || '')
+              .replace(/^https?:\/\//i, '')
+              .replace(/^www\./i, '')
+              .replace(/\/.*$/, '')
+              .replace(/:\d+$/, '')
+              .trim()
+              .toLowerCase();
+
           if (slug) {
             tenantQuery = query(collection(db, 'tenants'), where('slug', '==', slug), limit(1));
           } else if (customDomain) {
-            const cleanDomain = customDomain.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '').trim().toLowerCase();
+            const cleanDomain = normalizeDomainValue(customDomain);
             const domainsToSearch = [
               cleanDomain,
               'www.' + cleanDomain,
@@ -415,26 +424,152 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
             }
           }
 
-          // Fallback in-memory scan if direct array query didn't match
+          // Multi-layer fallback resolution for custom domains (matching server.ts + fuzzy slug/settings match)
           if (!tenantData && customDomain) {
-            const cleanDomain = customDomain.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '').trim().toLowerCase();
-            try {
-              const allTenantsSnap = await getDocs(collection(db, 'tenants'));
-              allTenantsSnap.forEach((docSnap) => {
-                if (tenantData) return;
-                const data = docSnap.data() as any;
-                if (data.customDomain) {
-                  const storedClean = data.customDomain.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '').trim().toLowerCase();
-                  if (storedClean === cleanDomain) {
-                    tenantDocId = docSnap.id;
-                    tenantData = { id: docSnap.id, ...data } as Tenant;
+            const cleanDomain = normalizeDomainValue(customDomain);
+            const domainWithoutExt = cleanDomain.split('.')[0] || '';
+            const domainCompact = domainWithoutExt.replace(/[^a-z0-9]/g, '');
+            const domainsToSearch = [
+              cleanDomain,
+              'www.' + cleanDomain,
+              'https://' + cleanDomain,
+              'https://www.' + cleanDomain,
+              'http://' + cleanDomain,
+              'http://www.' + cleanDomain,
+              cleanDomain + '/',
+              'www.' + cleanDomain + '/'
+            ];
+
+            // Layer 2a: Direct slug match against domain prefix (e.g. explorebalitours.com -> slug 'explorebalitours')
+            if (domainWithoutExt) {
+              try {
+                const slugSnap = await rawGetDocs(rawQuery(rawCollection(db, 'tenants'), rawWhere('slug', '==', domainWithoutExt), limit(1)));
+                if (!slugSnap.empty) {
+                  const d = slugSnap.docs[0];
+                  tenantDocId = d.id;
+                  tenantData = { id: d.id, ...(d.data() as any) } as Tenant;
+                }
+              } catch (slugErr) {
+                console.warn('Error in customDomain slug fallback query:', slugErr);
+              }
+            }
+
+            // Layer 2b: Check settings collection for customDomain match
+            if (!tenantData) {
+              try {
+                const settingsSnap = await rawGetDocs(rawQuery(rawCollection(db, 'settings'), rawWhere('customDomain', 'in', domainsToSearch.slice(0, 10)), limit(1)));
+                if (!settingsSnap.empty) {
+                  const matchedSettingsDoc = settingsSnap.docs[0];
+                  const tId = matchedSettingsDoc.id;
+                  if (tId !== 'globalSEO' && tId !== 'globalBrand' && !tId.startsWith('payment_')) {
+                    const tSnap = await rawGetDoc(rawDoc(db, 'tenants', tId));
+                    if (tSnap.exists()) {
+                      tenantDocId = tSnap.id;
+                      tenantData = { id: tSnap.id, ...(tSnap.data() as any) } as Tenant;
+                    } else {
+                      const sData = matchedSettingsDoc.data() as any;
+                      tenantDocId = tId;
+                      tenantData = {
+                        id: tId,
+                        slug: sData.slug || domainWithoutExt || tId,
+                        companyName: sData.siteName || sData.companyName || domainWithoutExt,
+                        customDomain: cleanDomain,
+                        status: 'active',
+                        plan: 'pro'
+                      } as unknown as Tenant;
+                    }
                   }
                 }
-              });
-            } catch (fallbackErr: any) {
-              console.warn('Error in fallback customDomain scan:', fallbackErr);
-              if (!fetchError) {
-                fetchError = fallbackErr.message || String(fallbackErr);
+              } catch (settingsErr) {
+                console.warn('Error in customDomain settings query:', settingsErr);
+              }
+            }
+
+            // Layer 2c: In-memory scan of all tenants (normalized customDomain, exact slug, compact slug, or companyName)
+            if (!tenantData) {
+              try {
+                const allTenantsSnap = await rawGetDocs(rawCollection(db, 'tenants'));
+                let fuzzyMatchDoc: { id: string; data: any } | null = null;
+
+                allTenantsSnap.forEach((docSnap) => {
+                  if (tenantData) return;
+                  const data = docSnap.data() as any;
+                  const candidates = [data.customDomain, data.domain, data.website].filter(Boolean);
+                  for (const cand of candidates) {
+                    if (normalizeDomainValue(cand) === cleanDomain) {
+                      tenantDocId = docSnap.id;
+                      tenantData = { id: docSnap.id, ...data } as Tenant;
+                      return;
+                    }
+                  }
+
+                  if (!fuzzyMatchDoc && domainCompact.length >= 4) {
+                    const slugCompact = String(data.slug || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    const nameCompact = String(data.companyName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (
+                      (data.slug && String(data.slug).toLowerCase() === domainWithoutExt) ||
+                      (slugCompact && slugCompact === domainCompact) ||
+                      (nameCompact && nameCompact === domainCompact)
+                    ) {
+                      fuzzyMatchDoc = { id: docSnap.id, data };
+                    }
+                  }
+                });
+
+                if (!tenantData && fuzzyMatchDoc) {
+                  tenantDocId = (fuzzyMatchDoc as { id: string; data: any }).id;
+                  tenantData = { id: tenantDocId, ...(fuzzyMatchDoc as { id: string; data: any }).data } as Tenant;
+                }
+              } catch (fallbackErr: any) {
+                console.warn('Error in fallback customDomain scan:', fallbackErr);
+                if (!fetchError) {
+                  fetchError = fallbackErr.message || String(fallbackErr);
+                }
+              }
+            }
+
+            // Layer 2d: In-memory scan of settings collection if still not resolved
+            if (!tenantData) {
+              try {
+                const allSettingsSnap = await rawGetDocs(rawCollection(db, 'settings'));
+                let matchedSettingsId: string | null = null;
+                let matchedSettingsData: any = null;
+
+                allSettingsSnap.forEach((docSnap) => {
+                  if (matchedSettingsId) return;
+                  const sId = docSnap.id;
+                  if (sId === 'globalSEO' || sId === 'globalBrand' || sId.startsWith('payment_')) return;
+                  const sData = docSnap.data() as any;
+                  const sDomain = normalizeDomainValue(sData.customDomain || sData.domain || sData.websiteUrl || '');
+                  const sNameCompact = String(sData.siteName || sData.companyName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                  if (
+                    (sDomain && sDomain === cleanDomain) ||
+                    (domainCompact.length >= 4 && sNameCompact === domainCompact)
+                  ) {
+                    matchedSettingsId = sId;
+                    matchedSettingsData = sData;
+                  }
+                });
+
+                if (matchedSettingsId) {
+                  const tSnap = await rawGetDoc(rawDoc(db, 'tenants', matchedSettingsId));
+                  if (tSnap.exists()) {
+                    tenantDocId = tSnap.id;
+                    tenantData = { id: tSnap.id, ...(tSnap.data() as any) } as Tenant;
+                  } else {
+                    tenantDocId = matchedSettingsId;
+                    tenantData = {
+                      id: matchedSettingsId,
+                      slug: matchedSettingsData?.slug || domainWithoutExt || matchedSettingsId,
+                      companyName: matchedSettingsData?.siteName || matchedSettingsData?.companyName || domainWithoutExt,
+                      customDomain: cleanDomain,
+                      status: 'active',
+                      plan: 'pro'
+                    } as unknown as Tenant;
+                  }
+                }
+              } catch (settingsScanErr) {
+                console.warn('Error in fallback settings scan:', settingsScanErr);
               }
             }
           }

@@ -72,27 +72,41 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                         <button
                           onClick={async () => {
                             try {
-                              const tenantId = getActiveTenantId();
+                              const tenantId = getActiveTenantId() || tenantData?.id;
                               if (!tenantId) {
                                 alert("Error: Tenant ID not found.");
                                 return;
                               }
-                              // Hit the Vercel API
+                              const cleanedDomain = (tenantData?.customDomain || '')
+                                .replace(/^https?:\/\//i, '')
+                                .replace(/\/.*$/, '')
+                                .trim()
+                                .toLowerCase();
+
+                              setTenantData((prev: any) => prev ? { ...prev, customDomain: cleanedDomain } : { customDomain: cleanedDomain });
+
+                              // Always persist customDomain to both tenants/{tenantId} and settings/{tenantId} first
+                              await setDoc(doc(db, 'tenants', tenantId), {
+                                customDomain: cleanedDomain
+                              }, { merge: true });
+                              await setDoc(doc(db, 'settings', tenantId), {
+                                customDomain: cleanedDomain
+                              }, { merge: true });
+
+                              // Hit the Vercel API to register the domain on the deployment if not already added
                               const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
                               const res = await fetch('/api/tenant/add-domain', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                body: JSON.stringify({ domain: tenantData?.customDomain || '' })
+                                body: JSON.stringify({ domain: cleanedDomain })
                               });
                               if (!res.ok) {
-                                const errorData = await res.json();
-                                alert("Vercel API Error: " + (errorData.error || "Failed to add domain"));
+                                const errorData = await res.json().catch(() => ({}));
+                                console.warn("Vercel API response:", errorData);
+                                alert("Custom domain saved to your workspace! (Note: If you haven't added the domain in Vercel yet, verify your DNS CNAME/A records.)");
                                 return;
                               }
-                              await setDoc(doc(db, 'tenants', tenantId), { 
-                                customDomain: tenantData?.customDomain || '' 
-                              }, { merge: true });
-                              alert("Success: Custom Domain successfully updated on Vercel!");
+                              alert("Success: Custom Domain saved and registered!");
                             } catch (err) {
                               console.error(err);
                               alert("Error: Failed to save domain config.");

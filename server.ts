@@ -4017,6 +4017,10 @@ export async function createServer() {
         whapiApiUrl,
         whapiChannelId,
         whapiProxyUrl,
+        wautomationApiKey,
+        wautomationBaseUrl,
+        wautomationInstanceId,
+        wautomationWebhookSecret,
         tenantId
       } = req.body;
       const finalMessageContent = customMessage || fallbackMessage;
@@ -4124,17 +4128,35 @@ export async function createServer() {
         proxyUrl: whapiProxyUrl || settings.whapiProxyUrl
       };
 
-      // Use configured OpenWA credentials, supporting inline overrides
-      const finalToken = token || (finalProvider === 'whapi' ? (whapiToken || settings.whapiToken) : settings.openwaApiKey);
-      const finalBaseUrl = baseUrl || (finalProvider === 'whapi' ? (whapiApiUrl || settings.whapiApiUrl) : settings.openwaBaseUrl);
-      const finalSessionId = sessionId || (finalProvider === 'whapi' ? (whapiChannelId || settings.whapiChannelId) : settings.openwaSessionId);
+      const finalWautomationConfig = {
+        apiKey: wautomationApiKey || settings.wautomationApiKey,
+        baseUrl: wautomationBaseUrl || settings.wautomationBaseUrl || 'https://wautomation.ai.studio',
+        instanceId: wautomationInstanceId || settings.wautomationInstanceId
+      };
+
+      // Use configured credentials supporting inline overrides per provider
+      const finalToken = token || (
+        finalProvider === 'wautomation' ? (wautomationApiKey || settings.wautomationApiKey) :
+        finalProvider === 'whapi' ? (whapiToken || settings.whapiToken) : 
+        settings.openwaApiKey
+      );
+      const finalBaseUrl = baseUrl || (
+        finalProvider === 'wautomation' ? (wautomationBaseUrl || settings.wautomationBaseUrl || 'https://wautomation.ai.studio') :
+        finalProvider === 'whapi' ? (whapiApiUrl || settings.whapiApiUrl) : 
+        settings.openwaBaseUrl
+      );
+      const finalSessionId = sessionId || (
+        finalProvider === 'wautomation' ? (wautomationInstanceId || settings.wautomationInstanceId) :
+        finalProvider === 'whapi' ? (whapiChannelId || settings.whapiChannelId) : 
+        settings.openwaSessionId
+      );
       
       const result = await sendWhatsAppMessage({
         number: targetNumber,
         message: message,
         file: fileToSend,
         filename: filenameToSend
-      }, finalToken, finalBaseUrl, finalSessionId, finalProvider, finalWabaConfig, finalWhapiConfig);
+      }, finalToken, finalBaseUrl, finalSessionId, finalProvider, finalWabaConfig, finalWhapiConfig, finalWautomationConfig);
 
       res.json(result);
     } catch (error: any) {
@@ -6302,6 +6324,64 @@ export async function createServer() {
     }
   });
 
+  // API Route: WAutomation Webhook Receiver (https://wautomation.ai.studio)
+  app.post(["/webhooks/whatsapp", "/api/webhooks/wautomation", "/api/whatsapp/wautomation"], async (req, res) => {
+    try {
+      const signature = req.headers['x-wautomation-signature'];
+      
+      // Fetch communication settings to get configured webhook secret
+      let settings: any = {};
+      try {
+        const settingsDoc = await db.collection('communicationSettings').doc('global').get();
+        if (settingsDoc.exists) {
+          settings = settingsDoc.data();
+        }
+      } catch (dbErr) {
+        console.error("[WAutomation Webhook DB Fetch Error]:", dbErr);
+      }
+
+      const webhookSecret = settings.wautomationWebhookSecret || process.env.WAUTOMATION_WEBHOOK_SECRET;
+
+      // Verify HMAC SHA-256 signature if secret is configured
+      if (webhookSecret) {
+        const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+        const expected = 'sha256=' + crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
+
+        if (signature !== expected) {
+          console.warn(`[WAutomation Webhook] Invalid signature. Received: ${signature}, Expected: ${expected}`);
+          return res.status(401).json({ error: 'Invalid webhook signature' });
+        }
+      }
+
+      const { event, data } = req.body || {};
+      console.log(`[WAutomation Webhook] Event: ${event}`, data ? JSON.stringify(data).substring(0, 300) : '');
+
+      if (event === 'message.received' && data) {
+        const fromNumber = data.from_number || data.from || 'unknown';
+        const text = data.text || data.message || '';
+        console.log('Incoming WhatsApp from:', fromNumber, 'Text:', text);
+        
+        try {
+          await db.collection('email_logs').add({
+            type: 'WAutomation Message Received',
+            to: `+${fromNumber}`,
+            provider: 'wautomation',
+            status: 'success',
+            createdAt: new Date(),
+            errorMessage: `Incoming WhatsApp: "${text}"`
+          });
+        } catch (logErr: any) {
+          console.error("[WAutomation Webhook Log Error]:", logErr.message);
+        }
+      }
+
+      return res.json({ received: true });
+    } catch (err: any) {
+      console.error("[WAutomation Webhook Handler Error]:", err.message);
+      return res.status(500).json({ error: err.message || 'Internal server error' });
+    }
+  });
+
   // Helper for resolving friendly session names to UUIDs on OpenWA
   const resolveOpenWaSession = async (baseUrl: string, token: string, sessionNameOrId: string) => {
     const cleanToken = token.replace('Bearer ', '').trim();
@@ -7740,21 +7820,33 @@ export async function createServer() {
         // 4. Fallback in-memory scan
         if (!tenantDoc) {
           try {
+            const domainCompact = (domainWithoutExt || '').replace(/[^a-z0-9]/g, '');
             const allTenantsSnap = await db.collection('tenants').get();
+            let fuzzyTenantDoc: any = null;
             allTenantsSnap.docs.forEach(docSnap => {
               if (tenantDoc) return;
               const data = docSnap.data();
               if (data.customDomain) {
-                const storedClean = data.customDomain.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '').trim().toLowerCase();
+                const storedClean = data.customDomain.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '').trim().toLowerCase();
                 if (storedClean === cleanDomain) {
                   tenantDoc = { id: docSnap.id, ...data };
                   console.log(`[SEO Server] Resolved tenant from custom domain ${resolvedCustomDomain} (ID: ${tenantDoc.id}) via in-memory scan`);
+                  return;
                 }
-              } else if (data.slug && data.slug.toLowerCase() === domainWithoutExt) {
+              }
+              const slugCompact = String(data.slug || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              const nameCompact = String(data.companyName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (data.slug && data.slug.toLowerCase() === domainWithoutExt) {
                 tenantDoc = { id: docSnap.id, ...data };
                 console.log(`[SEO Server] Resolved tenant from slug ${domainWithoutExt} via in-memory scan`);
+              } else if (!fuzzyTenantDoc && domainCompact.length >= 4 && (slugCompact === domainCompact || nameCompact === domainCompact)) {
+                fuzzyTenantDoc = { id: docSnap.id, ...data };
               }
             });
+            if (!tenantDoc && fuzzyTenantDoc) {
+              tenantDoc = fuzzyTenantDoc;
+              console.log(`[SEO Server] Resolved tenant from compact domain match ${domainWithoutExt} (ID: ${tenantDoc.id}) via in-memory scan`);
+            }
           } catch (scanErr) {}
         }
       }

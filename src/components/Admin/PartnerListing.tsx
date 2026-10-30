@@ -212,7 +212,7 @@ const BlogManager: React.FC<BlogManagerProps> = ({
 
   useEffect(() => {
     if (autoOpenModal) {
-      setEditingPost({ status: 'draft', tags: [] });
+      setEditingPost({ status: 'published', tags: [] });
       setIsModalOpen(true);
       if (onHandledAutoOpenModal) {
         onHandledAutoOpenModal();
@@ -278,7 +278,7 @@ const BlogManager: React.FC<BlogManagerProps> = ({
     setIsUploadingBlogImage(true);
     try {
       const url = await uploadImage(file);
-      setEditingPost(prev => prev ? { ...prev, featuredImage: url } : { featuredImage: url, status: 'draft', tags: [] });
+      setEditingPost(prev => prev ? { ...prev, featuredImage: url } : { featuredImage: url, status: 'published', tags: [] });
     } catch (err: any) {
       console.error("Blog image upload failed:", err);
       alert("Image upload failed: " + (err.message || err));
@@ -294,22 +294,37 @@ const BlogManager: React.FC<BlogManagerProps> = ({
 
     const { id, ...restData } = editingPost as any;
     const currentTenantId = getActiveTenantId();
-    const postData = {
+    const effectiveStatus = restData.status || 'published';
+    const postData: Record<string, any> = {
       ...restData,
+      status: effectiveStatus,
       tenantId: restData.tenantId || currentTenantId,
       featuredImage: editingPost.featuredImage || '',
       seo: restData.seo || { title: '', description: '' },
       updatedAt: serverTimestamp(),
     };
 
+    if (effectiveStatus === 'published' && !postData.publishedAt) {
+      postData.publishedAt = serverTimestamp();
+    }
+
     if (!postData.createdAt) {
       postData.createdAt = serverTimestamp();
     }
 
+    const isFirestoreSpecialObject = (val: any): boolean => {
+      if (!val || typeof val !== 'object') return false;
+      if (typeof val.toDate === 'function' || typeof val.toMillis === 'function') return true;
+      if (val._methodName || val.type === 'serverTimestamp') return true;
+      const proto = Object.getPrototypeOf(val);
+      if (proto && proto !== Object.prototype && !Array.isArray(val)) return true;
+      return false;
+    };
+
     const cleanUndefined = (obj: any): any => {
       if (obj === undefined) return null;
       if (typeof obj !== 'object' || obj === null) return obj;
-      if (obj.toDate || obj._methodName) return obj; // Firebase timestamp or FieldValue
+      if (isFirestoreSpecialObject(obj)) return obj;
       if (Array.isArray(obj)) return obj.map(cleanUndefined).filter(v => v !== null);
       const result: Record<string, any> = {};
       for (const [k, v] of Object.entries(obj)) {
@@ -352,7 +367,7 @@ const BlogManager: React.FC<BlogManagerProps> = ({
           <p className="text-gray-500 font-medium text-sm">Create and manage your stories and news.</p>
         </div>
         <button 
-          onClick={() => { setEditingPost({ status: 'draft', tags: [] }); setIsModalOpen(true); }}
+          onClick={() => { setEditingPost({ status: 'published', tags: [] }); setIsModalOpen(true); }}
           className="bg-primary text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2"
         >
           <Icons.Plus className="h-4 w-4" /> New Article
@@ -453,7 +468,7 @@ const BlogManager: React.FC<BlogManagerProps> = ({
                             .toLowerCase()
                             .replace(/[^\w\s-]/g, '')
                             .replace(/\s+/g, '-').replace(/-+/g, '-'),
-                          status: 'draft',
+                          status: 'published',
                           tags: []
                         });
                       }}
@@ -466,7 +481,7 @@ const BlogManager: React.FC<BlogManagerProps> = ({
                     <input 
                       required
                       value={editingPost?.slug || ''}
-                      onChange={e => setEditingPost(prev => prev ? { ...prev, slug: e.target.value } : { slug: e.target.value, status: 'draft', tags: [] })}
+                      onChange={e => setEditingPost(prev => prev ? { ...prev, slug: e.target.value } : { slug: e.target.value, status: 'published', tags: [] })}
                       placeholder="url-slug"
                       className="w-full rounded-xl border-2 border-gray-50 bg-gray-50/50 p-4 font-bold text-sm focus:border-primary focus:bg-white outline-none transition-all"
                     />
@@ -478,7 +493,7 @@ const BlogManager: React.FC<BlogManagerProps> = ({
                     <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Category</label>
                     <input 
                       value={editingPost?.category || ''}
-                      onChange={e => setEditingPost(prev => prev ? { ...prev, category: e.target.value } : { category: e.target.value, status: 'draft', tags: [] })}
+                      onChange={e => setEditingPost(prev => prev ? { ...prev, category: e.target.value } : { category: e.target.value, status: 'published', tags: [] })}
                       placeholder="e.g. Travel Tips"
                       className="w-full rounded-xl border-2 border-gray-50 bg-gray-50/50 p-4 font-bold text-sm focus:border-primary focus:bg-white outline-none transition-all"
                     />
@@ -487,7 +502,7 @@ const BlogManager: React.FC<BlogManagerProps> = ({
                     <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Author</label>
                     <input 
                       value={editingPost?.author || ''}
-                      onChange={e => setEditingPost(prev => prev ? { ...prev, author: e.target.value } : { author: e.target.value, status: 'draft', tags: [] })}
+                      onChange={e => setEditingPost(prev => prev ? { ...prev, author: e.target.value } : { author: e.target.value, status: 'published', tags: [] })}
                       placeholder="Author Name"
                       className="w-full rounded-xl border-2 border-gray-50 bg-gray-50/50 p-4 font-bold text-sm focus:border-primary focus:bg-white outline-none transition-all"
                     />
@@ -495,15 +510,15 @@ const BlogManager: React.FC<BlogManagerProps> = ({
                   <div className="space-y-2">
                     <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Status</label>
                     <select 
-                      value={editingPost?.status || 'draft'}
+                      value={editingPost?.status || 'published'}
                       onChange={e => {
                         const val = e.target.value as any;
                         setEditingPost(prev => prev ? { ...prev, status: val, publishedAt: val === 'published' ? (prev.publishedAt || serverTimestamp()) : null } : { status: val, tags: [] });
                       }}
                       className="w-full rounded-xl border-2 border-gray-50 bg-gray-50/50 p-4 font-bold text-sm focus:border-primary focus:bg-white outline-none transition-all appearance-none"
                     >
-                      <option value="draft">Draft</option>
                       <option value="published">Published</option>
+                      <option value="draft">Draft</option>
                     </select>
                   </div>
                 </div>

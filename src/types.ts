@@ -676,7 +676,11 @@ export interface CommunicationSettings {
   openwaApiKey?: string; // New: OpenWA API Key
   openwaBaseUrl?: string; // New: OpenWA Dashboard URL
   openwaSessionId?: string; // New: OpenWA Session Name
-  whatsappProvider?: 'openwa' | 'waba' | 'whapi'; // Provider select option
+  whatsappProvider?: 'openwa' | 'waba' | 'whapi' | 'wautomation'; // Provider select option
+  wautomationApiKey?: string; // WAutomation API Key (e.g. wauto_live_...)
+  wautomationBaseUrl?: string; // WAutomation Server URL (defaults to https://wautomation.ai.studio)
+  wautomationInstanceId?: string; // WAutomation Instance ID (e.g. t_...)
+  wautomationWebhookSecret?: string; // WAutomation Webhook Secret (e.g. whsec_...)
   whapiToken?: string; // Whapi API Token
   whapiApiUrl?: string; // Whapi API Gateway URL (defaults to https://gate.whapi.cloud)
   whapiChannelId?: string; // Whapi Channel ID (e.g. THOROD-C4US9)

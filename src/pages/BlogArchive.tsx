@@ -66,9 +66,8 @@ export default function BlogArchive() {
   const isSaaSBlog =
     isMaster ||
     !tenantId ||
-    tenant?.isSaaS ||
-    tenantId === 'global' ||
-    (typeof window !== 'undefined' && window.location.hostname.includes('tripbone.com'));
+    Boolean(tenant?.isSaaS) ||
+    tenantId === 'global';
   const pageTitle = formatPageTitle(
     isSaaSBlog ? 'Tripbone Platform Blog & Updates' : 'Travel Stories', 
     settings?.siteName || (isSaaSBlog ? 'Tripbone' : 'Bali Adventours'), 
