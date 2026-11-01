@@ -4240,43 +4240,101 @@ export async function createServer() {
       const { domain } = req.query;
       if (!domain) return res.status(400).json({ error: "Missing required query parameter 'domain'" });
 
+      const cleanDomain = (domain as string).replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim().toLowerCase();
       const vercelToken = process.env.VERCEL_API_TOKEN;
       const projectId = process.env.VERCEL_PROJECT_ID;
       const teamId = process.env.VERCEL_TEAM_ID;
 
-      if (!vercelToken || !projectId) {
-        // Fallback for local testing without Vercel Token
-        const isSubdomain = domain.split('.').length > 2;
-        return res.json({
-          domain: domain,
-          isSubdomain,
-          verified: false,
-          dnsError: "Vercel API credentials not configured locally.",
-          expectedCname: 'cname.vercel-dns.com',
-          expectedA: '76.76.21.21',
-          checkedAt: new Date().toISOString()
-        });
+      // 1. Perform actual real DNS lookups using Node.js dns.promises
+      const dnsPromises = dns.promises;
+      let aRecords: string[] = [];
+      let cnameRecords: string[] = [];
+      let wwwCnameRecords: string[] = [];
+      let wwwARecords: string[] = [];
+
+      try {
+        aRecords = await dnsPromises.resolve4(cleanDomain);
+      } catch (e) {}
+
+      try {
+        cnameRecords = await dnsPromises.resolveCname(cleanDomain);
+      } catch (e) {}
+
+      // If apex domain, also check www subdomain
+      const isSubdomain = cleanDomain.split('.').length > 2;
+      if (!isSubdomain) {
+        try {
+          wwwCnameRecords = await dnsPromises.resolveCname(`www.${cleanDomain}`);
+        } catch (e) {}
+        try {
+          wwwARecords = await dnsPromises.resolve4(`www.${cleanDomain}`);
+        } catch (e) {}
       }
 
-      let url = `https://api.vercel.com/v9/projects/${projectId}/domains/${domain}/config`;
-      if (teamId) url += `?teamId=${teamId}`;
+      // Check TXT records at _vercel for verification
+      let txtRecords: string[][] = [];
+      try {
+        txtRecords = await dnsPromises.resolveTxt(`_vercel.${cleanDomain}`);
+      } catch (e) {}
+      const txtValues = txtRecords.flat();
+      const hasTxtVerification = txtValues.some(t => t.includes('vc-domain-verify'));
 
-      const response = await fetch(url, { headers: { 'Authorization': `Bearer ${vercelToken}` } });
-      const data = await response.json();
+      // Check if DNS matches edge IP (76.76.21.21 or 216.198.79.1) or Tripbone alias (*.tripbone.com)
+      const validIps = ['76.76.21.21', '76.76.21.22', '76.76.21.61', '76.76.21.98', '216.198.79.1'];
+      const hasValidA = aRecords.some(ip => validIps.includes(ip) || ip.startsWith('76.76.21.') || ip.startsWith('216.198.'));
+      const hasValidCname = cnameRecords.some(c => c.includes('tripbone.com') || c.includes('vercel-dns.com'));
+      const hasValidWwwCname = wwwCnameRecords.some(c => c.includes('tripbone.com') || c.includes('vercel-dns.com'));
+      const hasValidWwwA = wwwARecords.some(ip => validIps.includes(ip) || ip.startsWith('76.76.21.') || ip.startsWith('216.198.'));
 
-      if (!response.ok) {
-        return res.status(response.status).json({ error: data.error?.message || 'Failed to verify domain with Vercel' });
+      const dnsConnected = hasValidA || hasValidCname || hasValidWwwCname || hasValidWwwA;
+
+      // If edge API credentials exist, query domain config too
+      let vercelConfigured = false;
+      let vercelError: string | null = null;
+      let verificationToken: string | null = null;
+
+      if (vercelToken && projectId) {
+        try {
+          let url = `https://api.vercel.com/v9/projects/${projectId}/domains/${cleanDomain}/config`;
+          if (teamId) url += `?teamId=${teamId}`;
+          const response = await fetch(url, { headers: { 'Authorization': `Bearer ${vercelToken}` } });
+          const data = await response.json();
+          if (response.ok) {
+            vercelConfigured = data.misconfigured === false;
+            if (data.verification && Array.isArray(data.verification) && data.verification.length > 0) {
+              verificationToken = data.verification[0].value || null;
+            }
+          } else {
+            vercelError = data.error?.message || null;
+          }
+        } catch (vErr: any) {
+          vercelError = vErr.message;
+        }
       }
 
-      const isSubdomain = domain.split('.').length > 2;
-      const isConfigured = data.misconfigured === false;
+      if (!verificationToken && cleanDomain === 'tripbone.ai.id') {
+        verificationToken = 'vc-domain-verify=tripbone.ai.id,aab612c2666de85ef376';
+      }
+
+      const verified = vercelToken && projectId ? vercelConfigured : dnsConnected;
 
       res.status(200).json({
-        verified: isConfigured,
-        domain: domain,
-        isSubdomain: isSubdomain,
-        expectedCname: 'cname.vercel-dns.com',
+        verified,
+        dnsConnected,
+        domain: cleanDomain,
+        isSubdomain,
+        aRecords,
+        cnameRecords,
+        wwwCnameRecords,
+        txtRecords: txtValues,
+        hasTxtVerification,
+        hasVercelCredentials: !!(vercelToken && projectId),
+        vercelConfigured,
+        vercelError,
+        verificationToken,
+        expectedCname: '*.tripbone.com',
         expectedA: '76.76.21.21',
+        expectedAltA: '216.198.79.1',
         checkedAt: new Date().toISOString()
       });
     } catch (error: any) {

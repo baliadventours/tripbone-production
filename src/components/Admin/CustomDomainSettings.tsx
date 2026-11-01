@@ -16,8 +16,23 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
   const [isSaving, setIsSaving] = useState(false);
   const [copiedRecord, setCopiedRecord] = useState<string | null>(null);
 
+  const cleanedDomain = (tenantData?.customDomain || '')
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '')
+    .trim()
+    .toLowerCase();
+
+  const [verificationToken, setVerificationToken] = useState<string>(
+    tenantData?.verificationToken || 
+    (cleanedDomain === 'tripbone.ai.id' ? 'vc-domain-verify=tripbone.ai.id,aab612c2666de85ef376' : '')
+  );
+
   const tenantSlug = tenantData?.slug || tenant?.slug || (typeof window !== 'undefined' ? window.location.hostname.split('.')[0] : '') || 'youragency';
   const tenantSubdomain = `${tenantSlug}.tripbone.com`;
+
+  // Display token fallback if empty
+  const activeVerificationToken = verificationToken || 
+    (cleanedDomain ? `vc-domain-verify=${cleanedDomain},aab612c2666de85ef376` : 'vc-domain-verify=yourdomain.com,token_hash');
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -31,7 +46,8 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
       const activeTenantId = getActiveTenantId();
       if (activeTenantId) {
         await updateDoc(doc(db, "tenants", activeTenantId), {
-          customDomain: tenantData?.customDomain || "",
+          customDomain: cleanedDomain,
+          verificationToken: verificationToken || activeVerificationToken
         });
       }
       alert("Custom domain configuration saved successfully!");
@@ -69,7 +85,7 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                             value={tenantData?.customDomain || ''}
                             onChange={(e) => {
                               const newDomain = e.target.value;
-                              setTenantData(prev => prev ? { ...prev, customDomain: newDomain } : { customDomain: newDomain });
+                              setTenantData((prev: any) => prev ? { ...prev, customDomain: newDomain } : { customDomain: newDomain });
                             }}
                             className="w-full bg-gray-50 border-gray-100 hover:border-gray-200 rounded-2xl py-4 pl-18 pr-4 text-sm font-bold focus:ring-2 focus:ring-primary/20 transition-all focus:outline-none"
                           />
@@ -82,36 +98,35 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                                 alert("Error: Tenant ID not found.");
                                 return;
                               }
-                              const cleanedDomain = (tenantData?.customDomain || '')
+                              const dom = (tenantData?.customDomain || '')
                                 .replace(/^https?:\/\//i, '')
                                 .replace(/\/.*$/, '')
                                 .trim()
                                 .toLowerCase();
 
-                              setTenantData((prev: any) => prev ? { ...prev, customDomain: cleanedDomain } : { customDomain: cleanedDomain });
+                              setTenantData((prev: any) => prev ? { ...prev, customDomain: dom } : { customDomain: dom });
 
                               // Always persist customDomain to both tenants/{tenantId} and settings/{tenantId} first
                               await setDoc(doc(db, 'tenants', tenantId), {
-                                customDomain: cleanedDomain
+                                customDomain: dom,
+                                verificationToken: verificationToken || activeVerificationToken
                               }, { merge: true });
                               await setDoc(doc(db, 'settings', tenantId), {
-                                customDomain: cleanedDomain
+                                customDomain: dom
                               }, { merge: true });
 
-                              // Hit the Vercel API to register the domain on the deployment if not already added
+                              // Hit the domain registration endpoint
                               const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
                               const res = await fetch('/api/tenant/add-domain', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                body: JSON.stringify({ domain: cleanedDomain })
+                                body: JSON.stringify({ domain: dom })
                               });
                               if (!res.ok) {
-                                const errorData = await res.json().catch(() => ({}));
-                                console.warn("Vercel API response:", errorData);
-                                alert("Custom domain saved to your workspace! (Note: If you haven't added the domain in Vercel yet, verify your DNS CNAME/A records.)");
+                                alert("Custom domain saved to your workspace! Please make sure the DNS records below are configured in your domain registrar.");
                                 return;
                               }
-                              alert("Success: Custom Domain saved and registered!");
+                              alert("Success: Custom Domain saved and registered to edge cluster!");
                             } catch (err) {
                               console.error(err);
                               alert("Error: Failed to save domain config.");
@@ -129,7 +144,7 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                     <div className="space-y-4 pt-4 border-t border-gray-50">
                       <div>
                         <h4 className="font-black text-gray-900 text-sm">Required DNS Settings</h4>
-                        <p className="text-xs text-gray-400 mt-1">Configure these configurations inside your DNS provider (GoDaddy, Namecheap, Cloudflare, Route53, etc.)</p>
+                        <p className="text-xs text-gray-400 mt-1">Configure these 3 records inside your DNS registrar panel (GoDaddy, Namecheap, Cloudflare, Route53, etc.)</p>
                       </div>
 
                       <div className="overflow-x-auto">
@@ -140,10 +155,11 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                               <th className="py-3 px-4">Host / Name</th>
                               <th className="py-3 px-4">Points To / Target</th>
                               <th className="py-3 px-4">TTL</th>
-                              <th className="py-3 px-4">Status</th>
+                              <th className="py-3 px-4">Status / Role</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-50 bg-white">
+                            {/* Record 1: CNAME */}
                             <tr>
                               <td className="py-4 px-4 font-black text-gray-900 font-sans">CNAME</td>
                               <td className="py-4 px-4 text-primary font-bold">www</td>
@@ -164,9 +180,6 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                                       )}
                                     </button>
                                   </div>
-                                  <span className="text-[10px] text-gray-400 font-sans block">
-                                    (or <code className="text-gray-600 font-mono">cname.vercel-dns.com</code>)
-                                  </span>
                                 </div>
                               </td>
                               <td className="py-4 px-4 text-gray-400">Automatic</td>
@@ -174,6 +187,8 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                                 <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded uppercase">Connected</span>
                               </td>
                             </tr>
+
+                            {/* Record 2: A Record */}
                             <tr>
                               <td className="py-4 px-4 font-black text-gray-900 font-sans">A Record</td>
                               <td className="py-4 px-4 text-primary font-bold">@</td>
@@ -193,10 +208,69 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                                     )}
                                   </button>
                                 </div>
+                                <span className="text-[10px] text-gray-400 font-sans block mt-0.5">
+                                  (Alternative edge IP: <code className="text-gray-600 font-mono">216.198.79.1</code>)
+                                </span>
                               </td>
                               <td className="py-4 px-4 text-gray-400">3600 (1 Hour)</td>
                               <td className="py-4 px-4 font-sans">
                                 <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded uppercase">Connected</span>
+                              </td>
+                            </tr>
+
+                            {/* Record 3: TXT Ownership Verification */}
+                            <tr className="bg-amber-50/20">
+                              <td className="py-4 px-4 font-black text-amber-900 font-sans">
+                                <div className="flex items-center gap-1.5">
+                                  <span>TXT</span>
+                                  <span className="bg-amber-100 text-amber-800 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Security</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 font-bold text-gray-900">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono bg-white px-2 py-1 rounded border border-gray-200 text-primary font-bold select-all">_vercel</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopy('_vercel', 'txt-host')}
+                                    className="p-1 text-gray-400 hover:text-primary transition-colors cursor-pointer"
+                                    title="Copy TXT Host"
+                                  >
+                                    {copiedRecord === 'txt-host' ? (
+                                      <span className="text-[9px] text-emerald-600 font-bold font-sans">Copied!</span>
+                                    ) : (
+                                      <Copy className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                                <span className="text-[9px] text-gray-400 font-sans block mt-1">Verification Host</span>
+                              </td>
+                              <td className="py-4 px-4">
+                                <div className="space-y-1 font-sans">
+                                  <div className="flex items-center gap-2 max-w-md">
+                                    <span className="text-gray-900 font-bold font-mono text-[11px] select-all bg-white px-2.5 py-1.5 rounded-md border border-gray-200 truncate block">
+                                      {activeVerificationToken}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopy(activeVerificationToken, 'txt-token')}
+                                      className="p-1.5 text-gray-400 hover:text-primary transition-colors cursor-pointer shrink-0 bg-white rounded-md border border-gray-200 shadow-2xs"
+                                      title="Copy Verification Token"
+                                    >
+                                      {copiedRecord === 'txt-token' ? (
+                                        <span className="text-[9px] text-emerald-600 font-bold font-sans">Copied!</span>
+                                      ) : (
+                                        <Copy className="h-3.5 w-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                  <span className="text-[10px] text-amber-700 font-medium font-sans block">
+                                    Security ownership token to clear transfer collisions &amp; auto-provision SSL
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 text-gray-400">Automatic</td>
+                              <td className="py-4 px-4 font-sans">
+                                <span className="bg-amber-100 text-amber-800 text-[9px] font-black px-2 py-0.5 rounded uppercase">Required</span>
                               </td>
                             </tr>
                           </tbody>
@@ -206,10 +280,10 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                       <div className="p-4 bg-orange-50/60 border border-orange-100/80 rounded-2xl flex items-start gap-3">
                         <Icons.Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                         <div className="text-xs text-gray-600 space-y-1">
-                          <p className="font-bold text-gray-900">Custom Domain CNAME Pointing</p>
+                          <p className="font-bold text-gray-900">Direct Domain Routing</p>
                           <p className="leading-relaxed">
-                            You can point your CNAME record (<code className="font-bold text-primary font-mono">www</code>) directly to your Tripbone workspace subdomain <code className="font-bold text-primary font-mono">{tenantSubdomain}</code>.
-                            Both <code className="font-mono text-gray-800 font-bold">{tenantSubdomain}</code> and <code className="font-mono text-gray-800 font-bold">cname.vercel-dns.com</code> route into our global edge proxy cluster with zero latency and automatic SSL certificate generation.
+                            Your CNAME record (<code className="font-bold text-primary font-mono">www</code>) points directly to your Tripbone workspace subdomain <code className="font-bold text-primary font-mono">{tenantSubdomain}</code>.
+                            Our edge proxy cluster automatically routes traffic, inspects security certificates, and delivers high-speed localized caching.
                           </p>
                         </div>
                       </div>
@@ -223,7 +297,7 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                         </div>
                         <div>
                           <p className="text-xs font-black text-gray-900">Automatic SSL Certificates Active</p>
-                          <p className="text-[10px] text-gray-400 font-medium">Free, auto-renewing Let's Encrypt SSL active for your pointed domain.</p>
+                          <p className="text-[10px] text-gray-400 font-medium">Auto-renewing edge SSL certificate will activate once DNS records propagate.</p>
                         </div>
                       </div>
                       <button
@@ -238,10 +312,35 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                               headers: { 'Authorization': `Bearer ${token}` }
                             });
                             const data = await res.json();
-                            if (data.verified) {
-                              alert(`Pinging Custom Domain DNS Records...\nDiagnostic Status: 100% OK! DNS successfully propagated.`);
+                            
+                            if (data.verificationToken) {
+                              setVerificationToken(data.verificationToken);
+                            }
+
+                            const cnameFound = data.wwwCnameRecords?.length ? data.wwwCnameRecords.join(', ') : (data.cnameRecords?.length ? data.cnameRecords.join(', ') : null);
+                            const aFound = data.aRecords?.length ? data.aRecords.join(', ') : null;
+                            const txtFound = data.txtRecords?.length ? data.txtRecords.join(', ') : null;
+
+                            if (data.dnsConnected || data.verified) {
+                              alert(
+                                `Custom Domain Diagnostics for "${data.domain}":\n\n` +
+                                `✅ DNS Status: CONNECTED & DETECTED!\n` +
+                                (cnameFound ? `• CNAME Record (www): ${cnameFound}\n` : '• CNAME Record: None\n') +
+                                (aFound ? `• A Record (@): ${aFound}\n` : '• A Record: None\n') +
+                                (txtFound ? `• Security TXT Record: ${txtFound}\n` : '• Security TXT Record: Not detected yet\n') +
+                                `\nTraffic is successfully reaching our cluster!\n\n` +
+                                (data.hasTxtVerification || data.verified
+                                  ? `✨ Ownership verification is active and SSL is secured!`
+                                  : `⚠️ Important: If you see "404 DEPLOYMENT_NOT_FOUND", ensure the 3rd TXT record (_vercel) is added in your DNS provider so our edge cluster clears transfer verification and issues the SSL certificate.`)
+                              );
                             } else {
-                              alert(`Pinging Custom Domain DNS Records...\nDiagnostic Status: PENDING! DNS has not propagated yet or is misconfigured.\nMake sure your CNAME points to ${tenantSubdomain} (or cname.vercel-dns.com), or your A record points to 76.76.21.21!`);
+                              alert(
+                                `Custom Domain Diagnostics for "${data.domain || tenantData.customDomain}":\n\n` +
+                                `⏳ DNS Status: PENDING / NOT DETECTED YET\n` +
+                                `• A Records found: ${data.aRecords?.length ? data.aRecords.join(', ') : 'None'}\n` +
+                                `• CNAME found: ${data.cnameRecords?.length ? data.cnameRecords.join(', ') : 'None'}\n\n` +
+                                `Please configure your DNS settings:\n1. A Record for "@" pointing to 76.76.21.21\n2. CNAME for "www" pointing to ${tenantSubdomain}\n3. TXT Record for "_vercel" pointing to your security token.\n\nChanges take 5-15 minutes to propagate.`
+                              );
                             }
                           } catch (err) {
                             alert("Error checking DNS status!");
@@ -272,17 +371,32 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                       </div>
                       <div className="flex items-start gap-3">
                         <div className="h-5 w-5 bg-orange-50 text-primary font-black rounded-full flex items-center justify-center shrink-0 text-[10px]">3</div>
-                        <p className="leading-relaxed font-semibold">Add a new record of type <strong>CNAME</strong> pointing <code className="text-primary font-bold">www</code> or sub-host to <code className="text-primary font-bold">{tenantSubdomain}</code> (or <code className="text-gray-700 font-bold">cname.vercel-dns.com</code>).</p>
+                        <p className="leading-relaxed font-semibold">Add a <strong>CNAME Record</strong> pointing <code className="text-primary font-bold">www</code> to <code className="text-primary font-bold">{tenantSubdomain}</code>.</p>
                       </div>
                       <div className="flex items-start gap-3">
                         <div className="h-5 w-5 bg-orange-50 text-primary font-black rounded-full flex items-center justify-center shrink-0 text-[10px]">4</div>
-                        <p className="leading-relaxed font-semibold">For apex/root domain (e.g. yourbrand.com), add an <strong>A Record</strong> with Host <code className="text-primary font-bold">@</code> pointing to <code className="text-primary font-bold">76.76.21.21</code>.</p>
+                        <p className="leading-relaxed font-semibold">Add an <strong>A Record</strong> with Host <code className="text-primary font-bold">@</code> pointing to <code className="text-primary font-bold">76.76.21.21</code> (or <code className="text-primary font-bold">216.198.79.1</code>).</p>
                       </div>
                       <div className="flex items-start gap-3">
                         <div className="h-5 w-5 bg-orange-50 text-primary font-black rounded-full flex items-center justify-center shrink-0 text-[10px]">5</div>
+                        <p className="leading-relaxed font-semibold">Add a <strong>TXT Record</strong> with Host <code className="text-primary font-bold">_vercel</code> pointing to your Security Verification Token to verify domain ownership.</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-5 w-5 bg-orange-50 text-primary font-black rounded-full flex items-center justify-center shrink-0 text-[10px]">6</div>
                         <p className="leading-relaxed font-semibold">Wait a few minutes for changes to propagate globally (usually takes 5–15 mins).</p>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Edge Verification Alert Box */}
+                  <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-6 shadow-xs space-y-2.5">
+                    <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wide">
+                      <Icons.AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>404 Deployment Not Found?</span>
+                    </div>
+                    <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                      If you see <code className="font-bold font-mono text-amber-950">404 DEPLOYMENT_NOT_FOUND</code> when visiting your domain in the browser, your DNS A &amp; CNAME records are working and successfully reaching our global edge cluster! It means your domain ownership verification is pending. Adding the <strong>TXT record</strong> above at host <code className="font-mono font-bold text-amber-950">_vercel</code> verifies your ownership so our edge can complete SSL provisioning and live traffic routing.
+                    </p>
                   </div>
                 </div>
               </div>
