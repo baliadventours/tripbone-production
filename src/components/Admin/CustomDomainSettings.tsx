@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { Globe, Check, AlertCircle, RefreshCw, Copy, ExternalLink, ShieldCheck } from "lucide-react";
+import { Globe, Check, AlertCircle, RefreshCw, Copy, ExternalLink, ShieldCheck, Info } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 const Icons = LucideIcons;
 import { cn } from "../../lib/utils";
 import { auth, doc, setDoc, updateDoc, db, getActiveTenantId } from "../../lib/firebase";
+import { useTenant } from "../../lib/TenantContext";
 
 interface CustomDomainSettingsProps {
   tenantData: any;
@@ -11,8 +12,12 @@ interface CustomDomainSettingsProps {
 }
 
 export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tenantData, setTenantData }) => {
+  const { tenant } = useTenant();
   const [isSaving, setIsSaving] = useState(false);
   const [copiedRecord, setCopiedRecord] = useState<string | null>(null);
+
+  const tenantSlug = tenantData?.slug || tenant?.slug || (typeof window !== 'undefined' ? window.location.hostname.split('.')[0] : '') || 'youragency';
+  const tenantSubdomain = `${tenantSlug}.tripbone.com`;
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -133,7 +138,7 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                             <tr>
                               <th className="py-3 px-4">Type</th>
                               <th className="py-3 px-4">Host / Name</th>
-                              <th className="py-3 px-4">Points To / IP Value</th>
+                              <th className="py-3 px-4">Points To / Target</th>
                               <th className="py-3 px-4">TTL</th>
                               <th className="py-3 px-4">Status</th>
                             </tr>
@@ -142,7 +147,28 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                             <tr>
                               <td className="py-4 px-4 font-black text-gray-900 font-sans">CNAME</td>
                               <td className="py-4 px-4 text-primary font-bold">www</td>
-                              <td className="py-4 px-4 text-gray-700 font-bold select-all">cname.vercel-dns.com</td>
+                              <td className="py-4 px-4">
+                                <div className="space-y-1 font-sans">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-gray-900 font-bold font-mono select-all bg-gray-50 px-2 py-1 rounded-md border border-gray-150">{tenantSubdomain}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopy(tenantSubdomain, 'cname-subdomain')}
+                                      className="p-1 text-gray-400 hover:text-primary transition-colors cursor-pointer"
+                                      title="Copy tenant subdomain"
+                                    >
+                                      {copiedRecord === 'cname-subdomain' ? (
+                                        <span className="text-[9px] text-emerald-600 font-bold font-sans">Copied!</span>
+                                      ) : (
+                                        <Copy className="h-3.5 w-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                  <span className="text-[10px] text-gray-400 font-sans block">
+                                    (or <code className="text-gray-600 font-mono">cname.vercel-dns.com</code>)
+                                  </span>
+                                </div>
+                              </td>
                               <td className="py-4 px-4 text-gray-400">Automatic</td>
                               <td className="py-4 px-4 font-sans">
                                 <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded uppercase">Connected</span>
@@ -151,7 +177,23 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                             <tr>
                               <td className="py-4 px-4 font-black text-gray-900 font-sans">A Record</td>
                               <td className="py-4 px-4 text-primary font-bold">@</td>
-                              <td className="py-4 px-4 text-gray-700 font-bold select-all">76.76.21.21</td>
+                              <td className="py-4 px-4">
+                                <div className="flex items-center gap-2 font-sans">
+                                  <span className="text-gray-900 font-bold font-mono select-all bg-gray-50 px-2 py-1 rounded-md border border-gray-150">76.76.21.21</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopy('76.76.21.21', 'a-record')}
+                                    className="p-1 text-gray-400 hover:text-primary transition-colors cursor-pointer"
+                                    title="Copy A Record IP"
+                                  >
+                                    {copiedRecord === 'a-record' ? (
+                                      <span className="text-[9px] text-emerald-600 font-bold font-sans">Copied!</span>
+                                    ) : (
+                                      <Copy className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
                               <td className="py-4 px-4 text-gray-400">3600 (1 Hour)</td>
                               <td className="py-4 px-4 font-sans">
                                 <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded uppercase">Connected</span>
@@ -159,6 +201,17 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                             </tr>
                           </tbody>
                         </table>
+                      </div>
+
+                      <div className="p-4 bg-orange-50/60 border border-orange-100/80 rounded-2xl flex items-start gap-3">
+                        <Icons.Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                        <div className="text-xs text-gray-600 space-y-1">
+                          <p className="font-bold text-gray-900">Custom Domain CNAME Pointing</p>
+                          <p className="leading-relaxed">
+                            You can point your CNAME record (<code className="font-bold text-primary font-mono">www</code>) directly to your Tripbone workspace subdomain <code className="font-bold text-primary font-mono">{tenantSubdomain}</code>.
+                            Both <code className="font-mono text-gray-800 font-bold">{tenantSubdomain}</code> and <code className="font-mono text-gray-800 font-bold">cname.vercel-dns.com</code> route into our global edge proxy cluster with zero latency and automatic SSL certificate generation.
+                          </p>
+                        </div>
                       </div>
                     </div>
 
@@ -188,7 +241,7 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                             if (data.verified) {
                               alert(`Pinging Custom Domain DNS Records...\nDiagnostic Status: 100% OK! DNS successfully propagated.`);
                             } else {
-                              alert(`Pinging Custom Domain DNS Records...\nDiagnostic Status: PENDING! DNS has not propagated yet or is misconfigured.\nMake sure you added the CNAME pointing to cname.vercel-dns.com!`);
+                              alert(`Pinging Custom Domain DNS Records...\nDiagnostic Status: PENDING! DNS has not propagated yet or is misconfigured.\nMake sure your CNAME points to ${tenantSubdomain} (or cname.vercel-dns.com), or your A record points to 76.76.21.21!`);
                             }
                           } catch (err) {
                             alert("Error checking DNS status!");
@@ -211,18 +264,22 @@ export const CustomDomainSettings: React.FC<CustomDomainSettingsProps> = ({ tena
                     <div className="space-y-3.5 text-xs text-gray-500 font-sans">
                       <div className="flex items-start gap-3">
                         <div className="h-5 w-5 bg-orange-50 text-primary font-black rounded-full flex items-center justify-center shrink-0 text-[10px]">1</div>
-                        <p className="leading-relaxed font-semibold">Login to your domain provider panel (GoDaddy, Namecheap, Cloudflare, etc.)</p>
+                        <p className="leading-relaxed font-semibold">Login to your domain provider panel (GoDaddy, Namecheap, Cloudflare, Route53, etc.)</p>
                       </div>
                       <div className="flex items-start gap-3">
                         <div className="h-5 w-5 bg-orange-50 text-primary font-black rounded-full flex items-center justify-center shrink-0 text-[10px]">2</div>
-                        <p className="leading-relaxed font-semibold">Navigate to the DNS management tab for your domain.</p>
+                        <p className="leading-relaxed font-semibold">Navigate to the DNS management / DNS records tab for your domain.</p>
                       </div>
                       <div className="flex items-start gap-3">
                         <div className="h-5 w-5 bg-orange-50 text-primary font-black rounded-full flex items-center justify-center shrink-0 text-[10px]">3</div>
-                        <p className="leading-relaxed font-semibold">Add a new record of type CNAME pointing <code className="text-primary font-bold">www</code> or sub-host to <code className="text-primary font-bold">cname.vercel-dns.com</code>.</p>
+                        <p className="leading-relaxed font-semibold">Add a new record of type <strong>CNAME</strong> pointing <code className="text-primary font-bold">www</code> or sub-host to <code className="text-primary font-bold">{tenantSubdomain}</code> (or <code className="text-gray-700 font-bold">cname.vercel-dns.com</code>).</p>
                       </div>
                       <div className="flex items-start gap-3">
                         <div className="h-5 w-5 bg-orange-50 text-primary font-black rounded-full flex items-center justify-center shrink-0 text-[10px]">4</div>
+                        <p className="leading-relaxed font-semibold">For apex/root domain (e.g. yourbrand.com), add an <strong>A Record</strong> with Host <code className="text-primary font-bold">@</code> pointing to <code className="text-primary font-bold">76.76.21.21</code>.</p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-5 w-5 bg-orange-50 text-primary font-black rounded-full flex items-center justify-center shrink-0 text-[10px]">5</div>
                         <p className="leading-relaxed font-semibold">Wait a few minutes for changes to propagate globally (usually takes 5–15 mins).</p>
                       </div>
                     </div>

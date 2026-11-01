@@ -53,6 +53,7 @@ import { cn } from '../../lib/utils';
 import { updateTenantGA, extractMeasurementId } from '../../lib/googleAnalytics';
 import CustomFooterEmbed from '../CustomFooterEmbed';
 import { sanitizeFirestoreData } from '../../services/payment/PaymentService';
+import { CustomDomainSettings } from './CustomDomainSettings';
 
 const TOP_NAV_OPTIONS = [
   { id: 'default', name: 'Classic Dark Bar (Phone, Support Email, Currency)', category: 'TopBar' },
@@ -370,6 +371,10 @@ export default function GeneralSettings({ activeTab = 'all' }: { activeTab?: 'co
 
   if (loading) return <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
 
+  if (activeTab === 'domain') {
+    return <CustomDomainSettings tenantData={settings} setTenantData={setSettings as any} />;
+  }
+
   const getHeaderInfo = () => {
     switch (activeTab) {
       case 'company-info':
@@ -378,8 +383,6 @@ export default function GeneralSettings({ activeTab = 'all' }: { activeTab?: 'co
         return { title: 'SEO Settings', subtitle: 'Optimize search engine metadata for higher rank and click rates' };
       case 'website':
         return { title: 'Website Branding & Styles', subtitle: 'Manage colors, fonts, slideshows, and custom assets' };
-      case 'domain':
-        return { title: 'Custom Domain Settings', subtitle: 'Configure and point your own branded custom domain' };
       case 'builder':
         return { title: 'Website Section Builder', subtitle: 'Dynamically customize and design individual home sections' };
       default:
@@ -417,11 +420,11 @@ export default function GeneralSettings({ activeTab = 'all' }: { activeTab?: 'co
 
       <div className={cn("grid grid-cols-1 md:grid-cols-2 gap-8", activeTab !== 'all' && "md:grid-cols-1 max-w-3xl mx-auto")}>
         {/* Basic Info */}
-        {(activeTab === 'all' || activeTab === 'company-info' || activeTab === 'website' || activeTab === 'domain') && (
+        {(activeTab === 'all' || activeTab === 'company-info' || activeTab === 'website') && (
           <div className="space-y-6 bg-white p-6 rounded-[24px] border border-gray-100">
             <h3 className="text-lg font-bold text-gray-900 border-b border-gray-50 pb-4 flex items-center gap-2">
               <Globe className="h-5 w-5 text-primary" />
-              {activeTab === 'domain' ? 'Custom Domain Connection' : 'Branding & Info'}
+              Branding & Info
             </h3>
             <div className="space-y-4">
               {(activeTab === 'all' || activeTab === 'company-info' || activeTab === 'website') && (
@@ -450,178 +453,37 @@ export default function GeneralSettings({ activeTab = 'all' }: { activeTab?: 'co
                   </div>
                 </>
               )}
-            {(activeTab === 'all' || activeTab === 'domain') && tenantId && (
+            {activeTab === 'all' && tenantId && (
               <div className="space-y-4 pt-1">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1 flex items-center gap-1.5">
-                    <span>Custom Domain</span>
-                    <span className="text-[10px] text-gray-400 font-mono font-normal tracking-normal">(e.g. tours.yourcompany.com)</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    value={settings?.customDomain || ''}
-                    onChange={(e) => {
-                      setSettings(s => s ? {...s, customDomain: e.target.value} : null);
-                      setVerificationResult(null);
-                    }}
-                    placeholder="tours.yourcompany.com"
-                    className="w-full bg-gray-50 border-none rounded-[12px] px-4 py-3 text-sm focus:ring-2 focus:ring-primary font-mono placeholder-gray-400"
-                  />
-                </div>
-
-                {settings?.customDomain && (
-                  <div className="bg-gray-50/70 border border-gray-100 p-4 rounded-[18px] space-y-3.5 transition-all">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                        <Info className="h-3.5 w-3.5 text-primary" />
-                        DNS Routing Guide
-                      </span>
-                      <a 
-                        href="https://dnschecker.org" 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-[10px] text-gray-400 hover:text-primary flex items-center gap-0.5 transition-colors font-medium"
-                      >
-                        <span>DNS Lookup Tool</span>
-                        <ExternalLink className="h-2.5 w-2.5" />
-                      </a>
+                <div className="bg-white border border-gray-150 p-6 rounded-2xl shadow-xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-orange-50 text-primary rounded-xl flex items-center justify-center font-bold shrink-0">
+                        <Globe className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">Custom Domain Pointing</h3>
+                        <p className="text-xs text-gray-500 font-medium">
+                          Point your custom domain (<code className="text-primary font-bold">www</code> or sub-host) to <code className="text-primary font-mono font-bold">{tenant?.slug ? `${tenant.slug}.tripbone.com` : 'youragency.tripbone.com'}</code>.
+                        </p>
+                      </div>
                     </div>
-
-                    <p className="text-xs text-gray-500 leading-relaxed">
-                      To point your custom domain <code className="bg-gray-100 px-1 py-0.5 rounded text-primary font-mono text-[11px]">{settings.customDomain}</code> to Tripbone, add the following DNS record in your domain registrar's panel (GoDaddy, Namecheap, Cloudflare, etc.):
-                    </p>
-
-                    {(() => {
-                      const cleanDomain = settings.customDomain.replace(/^https?:\/\//i, '').replace(/\/.*$/, '').trim();
-                      const isSub = cleanDomain.split('.').length > 2;
-                      const recordType = isSub ? 'CNAME' : 'A';
-                      const recordHost = isSub ? cleanDomain.split('.')[0] : '@';
-                      const recordValue = isSub ? 'cname.vercel-dns.com' : '76.76.21.21';
-
-                      return (
-                        <div className="space-y-2">
-                          <div className="grid grid-cols-3 gap-1 bg-gray-100/50 p-2 rounded-[12px] text-[11px] font-mono border border-gray-150">
-                            <div>
-                              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest pl-1 mb-0.5">Type</div>
-                              <div className="bg-white px-2 py-1 rounded-[6px] text-gray-800 font-bold border border-gray-100 text-center">{recordType}</div>
-                            </div>
-                            <div>
-                              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest pl-1 mb-0.5 font-sans">Host</div>
-                              <div className="bg-white px-2 py-1 rounded-[6px] text-gray-800 font-bold border border-gray-100 flex items-center justify-between gap-1 group">
-                                <span className="truncate">{recordHost}</span>
-                                <button 
-                                  type="button"
-                                  onClick={() => copyToClipboard(recordHost, 'host')}
-                                  className="text-gray-400 hover:text-primary transition-colors shrink-0"
-                                  title="Copy Host"
-                                >
-                                  {showDomainCopied === 'host' ? (
-                                    <span className="text-[8px] text-primary font-bold font-sans">Copied!</span>
-                                  ) : (
-                                    <Copy className="h-3 w-3" />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest pl-1 mb-0.5 font-sans">Points To</div>
-                              <div className="bg-white px-2 py-1 rounded-[6px] text-gray-800 font-bold border border-gray-100 flex items-center justify-between gap-1 group">
-                                <span className="truncate">{recordValue}</span>
-                                <button 
-                                  type="button"
-                                  onClick={() => copyToClipboard(recordValue, 'value')}
-                                  className="text-gray-400 hover:text-primary transition-colors shrink-0"
-                                  title="Copy Value"
-                                >
-                                  {showDomainCopied === 'value' ? (
-                                    <span className="text-[8px] text-primary font-bold font-sans">Copied!</span>
-                                  ) : (
-                                    <Copy className="h-3 w-3" />
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          {!isSub && (
-                            <div className="p-2 bg-amber-50 border border-amber-100/70 rounded-[10px] text-[10px] text-amber-700 flex items-start gap-1.5 leading-normal">
-                              <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                              <p>
-                                <strong>Apex Domain Warning:</strong> Since you are using a root domain, we also recommend adding a CNAME record with Host <code className="bg-amber-100/50 px-1 rounded font-bold">www</code> pointing to <code className="bg-amber-100/50 px-1 rounded font-bold">cname.vercel-dns.com</code>.
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-
-                    <div className="pt-1.5 flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={handleVerifyDomain}
-                        disabled={verifyingDomain}
-                        className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-white hover:bg-gray-100 text-gray-700 disabled:opacity-50 border border-gray-200/80 rounded-[12px] text-xs font-bold transition duration-150 shadow-sm cursor-pointer"
-                      >
-                        {verifyingDomain ? (
-                          <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                            <span>Querying Nameservers...</span>
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="h-3.5 w-3.5 text-gray-500" />
-                            <span>Verify Connection Status</span>
-                          </>
-                        )}
-                      </button>
-
-                      {verificationResult && (
-                        <div className={cn(
-                          "p-3 rounded-[12px] border text-xs transition-all space-y-2",
-                          verificationResult.verified 
-                            ? "bg-emerald-50/70 border-emerald-100 text-emerald-800"
-                            : "bg-orange-50/70 border-orange-100 text-orange-800"
-                        )}>
-                          <div className="flex items-center gap-1.5 font-bold">
-                            {verificationResult.verified ? (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                            ) : (
-                              <AlertCircle className="h-4 w-4 text-orange-600 shrink-0" />
-                            )}
-                            <span>
-                              {verificationResult.verified 
-                                ? "DNS Connection Status: Active" 
-                                : "DNS Propagation Pending"}
-                            </span>
-                          </div>
-
-                          <p className="text-[11px] leading-relaxed opacity-90">
-                            {verificationResult.verified ? (
-                              verificationResult.isSandboxEnvironment ? (
-                                "Sandbox Simulation verified connection successfully! Custom domain routing is ready."
-                              ) : (
-                                "Your domain DNS records match Tripbone requirements. Custom domain is active."
-                              )
-                            ) : (
-                              "We checked, but the DNS changes haven't propagated yet or don't match. DNS updates typically take 15 minutes to 4 hours, but can sometimes take up to 24 hours."
-                            )}
-                          </p>
-
-                          <div className="bg-black/5 p-2 rounded-[8px] font-mono text-[9px] text-gray-600 space-y-1">
-                            <div>Clean Domain: {verificationResult.domain}</div>
-                            {verificationResult.isSubdomain ? (
-                              <div>CNAME Records Found: {verificationResult.cnameRecords.length > 0 ? verificationResult.cnameRecords.join(', ') : 'None'}</div>
-                            ) : (
-                              <div>A Records Found: {verificationResult.aRecords.length > 0 ? verificationResult.aRecords.join(', ') : 'None'}</div>
-                            )}
-                            <div>Expected: {verificationResult.isSubdomain ? verificationResult.expectedCname : verificationResult.expectedA}</div>
-                            {verificationResult.dnsError && <div className="text-red-500">Lookup Error: {verificationResult.dnsError}</div>}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <a 
+                      href="?menu=custom-domain"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('menu', 'custom-domain');
+                        window.history.pushState({}, '', url.toString());
+                        window.dispatchEvent(new PopStateEvent('popstate'));
+                      }}
+                      className="px-5 py-2.5 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-orange-600 transition-all inline-flex items-center justify-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
+                    >
+                      <span>Manage Custom Domain</span>
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </a>
                   </div>
-                )}
+                </div>
               </div>
             )}
             {(activeTab === 'all' || activeTab === 'company-info' || activeTab === 'website') && (

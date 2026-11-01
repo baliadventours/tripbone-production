@@ -580,6 +580,7 @@ export default function Admin({ overrideMenu, overrideTab, isCentralPortal = fal
       const menu = params.get('menu') as MenuId;
       if (menu) {
         if ((menu as string).startsWith('wb-')) return 'website-builder';
+        if (menu === 'domain') return 'custom-domain';
         return menu;
       }
     }
@@ -640,7 +641,7 @@ export default function Admin({ overrideMenu, overrideTab, isCentralPortal = fal
       if (menu === 'users' || menu === 'access-roles' || menu?.startsWith('users-')) {
         return 'users-group';
       }
-      if (menu === 'settings' || menu === 'payments' || menu === 'general-settings' || menu === 'payment-settings' || menu === 'communication' || menu === 'backup' || menu === 'company-info' || menu === 'seo' || menu === 'domain') {
+      if (menu === 'settings' || menu === 'payments' || menu === 'general-settings' || menu === 'payment-settings' || menu === 'communication' || menu === 'backup' || menu === 'company-info' || menu === 'seo' || menu === 'domain' || menu === 'custom-domain') {
         return 'settings-group';
       }
     }
@@ -721,6 +722,7 @@ export default function Admin({ overrideMenu, overrideTab, isCentralPortal = fal
         'communication': 'settings-group',
         'seo': 'settings-group',
         'domain': 'settings-group',
+        'custom-domain': 'settings-group',
         'backup': 'settings-group'
       };
       const parent = parentMap[overrideMenu];
@@ -1686,7 +1688,7 @@ export default function Admin({ overrideMenu, overrideTab, isCentralPortal = fal
           { id: 'company-info', label: 'Company Info' },
           { id: 'communication', label: 'Communication Setting' },
           { id: 'seo', label: 'SEO Setting' },
-          { id: 'domain', label: 'Custom Domain' },
+          { id: 'custom-domain', label: 'Custom Domain' },
           { id: 'backup', label: 'Disaster Recovery & Backup' },
           { id: 'company-profile', label: 'My Company Profile', hidden: !isSupplier && !isAgent }
         ].filter(c => !c.hidden)
@@ -5720,7 +5722,7 @@ export default function Admin({ overrideMenu, overrideTab, isCentralPortal = fal
               const isActive = activeMenu === item.id;
               const isChildActive = item.children?.some(c => {
                 if (item.id === 'website-builder-group' && (activeMenu === 'website-builder' || activeMenu.startsWith('wb-'))) return true;
-                if (item.id === 'settings-group' && (activeMenu === 'general-settings' || activeMenu === 'payment-settings' || activeMenu === 'communication' || activeMenu === 'backup' || activeMenu === 'domain' || activeMenu === 'company-info' || activeMenu === 'seo')) return true;
+                if (item.id === 'settings-group' && (activeMenu === 'general-settings' || activeMenu === 'payment-settings' || activeMenu === 'communication' || activeMenu === 'backup' || activeMenu === 'domain' || activeMenu === 'custom-domain' || activeMenu === 'company-info' || activeMenu === 'seo')) return true;
                 if (item.id === 'booking-group' && (activeMenu === 'bookings' || activeMenu === 'schedule' || activeMenu === 'reports' || activeMenu === 'import-bookings')) return true;
                 if (item.id === 'tours-group' && (activeMenu === 'all-tours' || activeMenu === 'tours' || activeMenu === 'categories' || activeMenu === 'locations' || activeMenu === 'labels' || activeMenu === 'addons' || activeMenu === 'transports' || activeMenu === 'urgency-points')) return true;
                 if (item.id === 'car-rental-group' && (activeMenu === 'car-rental-bookings' || activeMenu === 'car-fleet' || activeMenu === 'car-rental-automations' || activeMenu === 'car-rental-settings')) return true;
@@ -5771,6 +5773,7 @@ export default function Admin({ overrideMenu, overrideTab, isCentralPortal = fal
                       {item.children.map((child) => {
                         const isChildHighlighted = 
                           activeMenu === child.id || 
+                          (activeMenu === 'custom-domain' && (child.id === 'custom-domain' || child.id === 'domain')) ||
                           (activeMenu === 'general-settings' && settingsActiveTab === child.id) ||
                           (activeMenu === 'website-builder' && (
                             (child.id === 'wb-site-settings' && websiteBuilderTab === 'siteSettings') ||
@@ -5823,9 +5826,11 @@ export default function Admin({ overrideMenu, overrideTab, isCentralPortal = fal
                               } else if (child.id === 'wb-footer-embed') {
                                   setActiveMenu('website-builder');
                                   setWebsiteBuilderTab('footerEmbed');
-                              } else if (child.id === 'company-info' || child.id === 'seo' || child.id === 'domain') {
+                              } else if (child.id === 'company-info' || child.id === 'seo') {
                                   setActiveMenu('general-settings');
                                   setSettingsActiveTab(child.id);
+                              } else if (child.id === 'custom-domain' || child.id === 'domain') {
+                                  setActiveMenu('custom-domain');
                               } else if (child.id === 'add-manual-booking') {
                                   setActiveMenu('bookings');
                                   setIsManualBookingModalOpen(true);
@@ -5883,7 +5888,6 @@ export default function Admin({ overrideMenu, overrideTab, isCentralPortal = fal
               {[
                 { id: 'billing', label: 'Billing & Plans', icon: CreditCard },
                 { id: 'backup', label: 'Disaster Recovery', icon: Database },
-                { id: 'custom-domain', label: 'Custom Domain', icon: Globe },
                 { id: 'tickets', label: 'Support & Ticket', icon: LifeBuoy },
                 { id: 'slides-trigger', label: 'AI Builder Slides', icon: FileText },
                 { id: 'developer-hub', label: 'Developer Hub', icon: Terminal },
@@ -6257,7 +6261,7 @@ export default function Admin({ overrideMenu, overrideTab, isCentralPortal = fal
               currentUser={auth.currentUser}
             />
           )}
-          {activeMenu === 'custom-domain' && (
+          {(activeMenu === 'custom-domain' || activeMenu === 'domain') && (
             <CustomDomainSettings tenantData={tenantData} setTenantData={setTenantData} />
           )}
           {activeMenu === 'developer-hub' && (
