@@ -16,12 +16,12 @@ import {
 import { Helmet } from 'react-helmet-async';
 
 export default function PresentationSlidesPage() {
-  const [deckMode, setDeckMode] = useState<'pitch' | 'hackathon'>('pitch');
+  const [deckMode, setDeckMode] = useState<'nextdev' | 'pitch' | 'hackathon'>('nextdev');
   const [currentSlide, setCurrentSlide] = useState(1);
-  const totalSlides = deckMode === 'pitch' ? 12 : 16;
+  const totalSlides = deckMode === 'nextdev' ? 6 : deckMode === 'pitch' ? 12 : 16;
   const [copied, setCopied] = useState(false);
 
-  const switchDeckMode = (mode: 'pitch' | 'hackathon') => {
+  const switchDeckMode = (mode: 'nextdev' | 'pitch' | 'hackathon') => {
     setDeckMode(mode);
     setCurrentSlide(1);
   };
@@ -53,7 +53,7 @@ export default function PresentationSlidesPage() {
         const text = await res.text();
         await navigator.clipboard.writeText(text);
       } else {
-        await navigator.clipboard.writeText("Tripbone Presentation Deck for Google Cloud AI Builder Cup 2026");
+        await navigator.clipboard.writeText("Tripbone Presentation Deck for 12th NextDev Telkomsel 2026");
       }
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
@@ -66,13 +66,29 @@ export default function PresentationSlidesPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center p-4 sm:p-6 lg:p-8 font-sans">
       <Helmet>
-        <title>{deckMode === 'pitch' ? 'Tripbone.com — Official Investor & Partner Pitch Deck' : 'Google Cloud AI Builder Cup 2026 — Tripbone Presentation'}</title>
+        <title>
+          {deckMode === 'nextdev'
+            ? 'Tripbone — 12th NextDev Telkomsel Pitch Deck (3 Menit)'
+            : deckMode === 'pitch'
+            ? 'Tripbone.com — Official Investor & Partner Pitch Deck'
+            : 'Google Cloud AI Builder Cup 2026 — Tripbone Presentation'}
+        </title>
       </Helmet>
 
       {/* Top Floating Control Bar */}
       <div className="w-full max-w-5xl bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-3 sm:px-6 mb-6 flex flex-wrap items-center justify-between gap-3 shadow-xl">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button
+              onClick={() => switchDeckMode('nextdev')}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition ${
+                deckMode === 'nextdev'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              12th NextDev (6 Slides • 3 Min)
+            </button>
             <button
               onClick={() => switchDeckMode('pitch')}
               className={`px-3 py-1 rounded-lg text-xs font-black transition ${
@@ -81,7 +97,7 @@ export default function PresentationSlidesPage() {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Tripbone Pitch Deck (12)
+              Investor Deck (12)
             </button>
             <button
               onClick={() => switchDeckMode('hackathon')}
@@ -116,7 +132,20 @@ export default function PresentationSlidesPage() {
 
         <div className="flex items-center gap-2">
           {/* Slide quick picker */}
-          {deckMode === 'pitch' ? (
+          {deckMode === 'nextdev' ? (
+            <select
+              value={currentSlide}
+              onChange={(e) => setCurrentSlide(Number(e.target.value))}
+              className="bg-slate-800 border border-slate-700 text-xs font-semibold rounded-xl px-2.5 py-1.5 text-slate-300 focus:outline-none focus:ring-1 focus:ring-red-500"
+            >
+              <option value={1}>1. Cover — Tripbone x 12th NextDev</option>
+              <option value={2}>2. Problem Statement & Innovation</option>
+              <option value={3}>3. Market Opportunity & Feasibility</option>
+              <option value={4}>4. Traction & Business Performance</option>
+              <option value={5}>5. Team & Founders Background</option>
+              <option value={6}>6. Closing — Let's Have A Good Discussion!</option>
+            </select>
+          ) : deckMode === 'pitch' ? (
             <select
               value={currentSlide}
               onChange={(e) => setCurrentSlide(Number(e.target.value))}
@@ -187,7 +216,19 @@ export default function PresentationSlidesPage() {
         
         {/* Slide Header */}
         <div className="bg-black text-white px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
-          {deckMode === 'pitch' ? (
+          {deckMode === 'nextdev' ? (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="font-black text-base tracking-tight text-red-500">12th NextDev</span>
+                <span className="text-slate-600">|</span>
+                <span className="font-black text-sm tracking-tight text-orange-400">TRIPBONE.COM</span>
+                <span className="text-xs font-bold text-slate-300 hidden sm:inline">— Pitching Battle Denpasar (3 Menit)</span>
+              </div>
+              <div className="text-[11px] font-bold px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-300">
+                The Impact Incubator • 2026
+              </div>
+            </>
+          ) : deckMode === 'pitch' ? (
             <>
               <div className="flex items-center gap-3">
                 <span className="font-black text-base tracking-tight text-orange-500">TRIPBONE.COM</span>
@@ -217,7 +258,246 @@ export default function PresentationSlidesPage() {
 
         {/* Slide Body */}
         <div className="flex-1 p-6 sm:p-10 flex flex-col justify-between overflow-y-auto">
-          {deckMode === 'pitch' ? (
+          {deckMode === 'nextdev' ? (
+            <>
+              {/* NEXTDEV SLIDE 1: COVER */}
+              {currentSlide === 1 && (
+                <div className="flex-1 flex flex-col justify-between bg-gradient-to-br from-emerald-950 via-red-900 to-slate-950 text-white p-8 sm:p-12 rounded-2xl -m-2 sm:-m-4 relative overflow-hidden">
+                  <div className="flex items-center justify-between text-xs font-black tracking-widest uppercase">
+                    <span className="bg-white/10 px-3 py-1 rounded-full text-emerald-300">12th NextDev • The Impact Incubator</span>
+                    <span className="text-slate-300">Denpasar Pitching Battle • 2026</span>
+                  </div>
+                  <div className="my-8">
+                    <div className="inline-flex items-center gap-2 text-xs font-black text-orange-300 uppercase tracking-widest mb-3">
+                      <Sparkles className="w-4 h-4" /> AI-Native SaaS for Local Tourism & Mobility SMEs
+                    </div>
+                    <h1 className="text-4xl sm:text-6xl font-black tracking-tight mb-4">
+                      Tripbone.com
+                    </h1>
+                    <p className="text-lg sm:text-2xl font-bold text-slate-100 max-w-3xl leading-snug">
+                      Sistem Operasi Berbasis AI &amp; 0% Komisi untuk Memberdayakan Operator Tur dan Rental Mobil Lokal
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-6 border-t border-white/15 text-xs">
+                    <div>
+                      <span className="text-slate-400 block">Founder</span>
+                      <span className="font-black text-white">I Kadek Didi Suprapta</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Lokasi</span>
+                      <span className="font-black text-white">Denpasar, Bali</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Kategori</span>
+                      <span className="font-black text-emerald-300">TravelTech &amp; AI SaaS</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block">Live Platform</span>
+                      <span className="font-black text-orange-300">https://tripbone.com</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* NEXTDEV SLIDE 2: PROBLEM STATEMENT & INNOVATION */}
+              {currentSlide === 2 && (
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-red-600 bg-red-50 px-2.5 py-1 rounded-md">
+                        Slide 2 • Durasi: 0:20 – 1:05 (45 Detik)
+                      </span>
+                      <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Problem Statement &amp; Innovation</h2>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    {/* 1. Pain Point */}
+                    <div className="p-5 rounded-2xl bg-red-50/70 border border-red-200 space-y-2.5">
+                      <div className="text-xs font-black uppercase text-red-700 tracking-wide">1. Masalah Spesifik (Pain Point)</div>
+                      <h3 className="font-black text-slate-900 text-sm">Operator Lokal Kehilangan Margin &amp; Waktu</h3>
+                      <ul className="space-y-2 text-slate-700 leading-relaxed">
+                        <li>• <strong>Pajak Komisi OTA 20%–30%:</strong> UMKM tur &amp; sewa mobil di Bali/Indonesia bergantung pada OTA asing (Viator, GetYourGuide, Klook) yang memotong hingga 30% pendapatan.</li>
+                        <li>• <strong>Biaya Web Mahal:</strong> Buat web booking sendiri butuh Rp 15–50 juta di agensi.</li>
+                        <li>• <strong>Operasional Manual:</strong> 3–4 jam/hari habis untuk balas chat WhatsApp turis di jam malam, rekap booking dari email, dan atur armada mobil di Excel.</li>
+                      </ul>
+                    </div>
+
+                    {/* 2. Solusi Inovatif */}
+                    <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2.5">
+                      <div className="text-xs font-black uppercase text-emerald-800 tracking-wide">2. Solusi Inovatif (Tripbone OS)</div>
+                      <h3 className="font-black text-slate-900 text-sm">Instant Direct-Booking SaaS + AI Co-Pilot</h3>
+                      <ul className="space-y-2 text-slate-700 leading-relaxed">
+                        <li>• <strong>Web Booking &amp; Custom Domain 15 Menit:</strong> Operator langsung punya website sendiri untuk paket tur &amp; sewa mobil (Lepas Kunci / Dengan Sopir).</li>
+                        <li>• <strong>AI Tour Magic &amp; 1-Click OTA Import:</strong> Salin link produk dari OTA atau ketik 1 kalimat, AI otomatis membuat itinerary, harga, SEO, dan foto.</li>
+                        <li>• <strong>24/7 AI WhatsApp &amp; Web Concierge:</strong> Menjawab tanya-jawab turis dalam puluhan bahasa dan mengarahkan langsung ke checkout.</li>
+                      </ul>
+                    </div>
+
+                    {/* 3. Perbedaan di Pasar */}
+                    <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-2.5">
+                      <div className="text-xs font-black uppercase text-orange-400 tracking-wide">3. Perbedaan Utama (Differentiator)</div>
+                      <h3 className="font-black text-white text-sm">Mengapa Tripbone Berbeda?</h3>
+                      <ul className="space-y-2 text-slate-200 leading-relaxed">
+                        <li>• <strong className="text-emerald-400">0% Komisi Booking (BYOPG):</strong> Berbeda dengan FareHarbor/Bokun (potong 3%–6%), uang turis 100% langsung masuk ke rekening operator via Midtrans, Xendit, atau Stripe.</li>
+                        <li>• <strong className="text-emerald-400">Tur + Rental Mobil + E-Waiver:</strong> Kompetitor hanya fokus tur; Tripbone menyatukan paket wisata, manajemen armada mobil, kontrak digital, dan otomatisasi WhatsApp dalam 1 dashboard.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* NEXTDEV SLIDE 3: MARKET OPPORTUNITY & FEASIBILITY */}
+              {currentSlide === 3 && (
+                <div className="space-y-5">
+                  <div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md">
+                      Slide 3 • Durasi: 1:05 – 1:45 (40 Detik)
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Market Opportunity &amp; Feasibility</h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                      <span className="text-[10px] font-black uppercase text-slate-400">1. Ukuran &amp; Segmen Pasar</span>
+                      <div className="text-2xl font-black text-slate-900">15.000+ UMKM</div>
+                      <div className="font-bold text-orange-600">Operator Tur, Aktivitas &amp; Rental di Indonesia</div>
+                      <p className="text-slate-600 leading-relaxed pt-1">
+                        • <strong>Beachhead (SOM):</strong> 5.000+ operator tur, sopir wisata, &amp; rental mobil di Bali &amp; Nusa Tenggara.<br/>
+                        • <strong>SAM (Asia Tenggara):</strong> 120.000+ UMKM wisata &amp; rental ($18B+ GMV).<br/>
+                        • <strong>TAM (Global):</strong> Pasar Tours, Activities &amp; Car Rental senilai $300B+/tahun.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                      <span className="text-[10px] font-black uppercase text-slate-400">2. Mengapa Tepat untuk Pasar Ini?</span>
+                      <div className="text-lg font-black text-slate-900">Dirancang Sesuai Realita Lokal</div>
+                      <p className="text-slate-600 leading-relaxed pt-1">
+                        • <strong>Local Payment Native:</strong> Terintegrasi langsung dengan QRIS, Virtual Account, Midtrans, &amp; Xendit + Kartu Kredit global.<br/>
+                        • <strong>WhatsApp-First Culture:</strong> Mayoritas transaksi wisata di Indonesia terjadi di WhatsApp—Tripbone mengotomatisasi pengingat H-1, penugasan sopir, dan balasan AI via WhatsApp.<br/>
+                        • <strong>Tanpa Skill Koding:</strong> Operator cukup klik preset desain dan langsung live.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-2">
+                      <span className="text-[10px] font-black uppercase text-emerald-400">3. Kelayakan Teknis &amp; Adopsi</span>
+                      <div className="text-lg font-black text-white">100% Cloud-Native &amp; Siap Skalabilitas</div>
+                      <p className="text-slate-300 leading-relaxed pt-1">
+                        • <strong>Arsitektur Multi-Tenant:</strong> Satu infrastruktur melayani ribuan tenant dengan isolasi data penuh &amp; Custom Domain otomatis.<br/>
+                        • <strong>Biaya Operasional Rendah:</strong> Serverless Cloud + Gemini Flash menjaga margin kotor SaaS di atas <strong>85%</strong>.<br/>
+                        • <strong>Zero Friction Adoption:</strong> Migrasi katalog dari OTA hanya butuh 30 detik per produk.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* NEXTDEV SLIDE 4: TRACTION & BUSINESS PERFORMANCE */}
+              {currentSlide === 4 && (
+                <div className="space-y-5">
+                  <div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md">
+                      Slide 4 • Durasi: 1:45 – 2:25 (40 Detik)
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Traction &amp; Business Performance</h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2">
+                      <div className="text-xs font-black uppercase text-emerald-800">1. Pertumbuhan &amp; Traksi Produk</div>
+                      <ul className="space-y-2 text-slate-700 leading-relaxed">
+                        <li>• <strong>Produk 100% Live di Production:</strong> Telah digunakan oleh operator aktif di Bali (termasuk <em>Bali Adventours</em>, <em>Didi Tours</em>, <em>Explore Bali Tours</em>).</li>
+                        <li>• <strong>8 Modul AI &amp; Operasional Aktif:</strong> AI Tour Magic, AI Email Booking Extractor, AI Trip Planner, Car Fleet Manager, Digital E-Waiver, dan WhatsApp Automation.</li>
+                        <li>• <strong>Efisiensi Terbukti:</strong> Memangkas waktu input produk hingga <strong>90%</strong> dan menghemat <strong>20%–25%</strong> biaya komisi OTA per transaksi.</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                      <div className="text-xs font-black uppercase text-slate-700">2. Model Bisnis &amp; Performa Keuangan</div>
+                      <ul className="space-y-2 text-slate-700 leading-relaxed">
+                        <li>• <strong>Pure B2B SaaS Subscription:</strong><br/>
+                          – <strong>Pro Plan:</strong> $39/bulan (~Rp 600rb)<br/>
+                          – <strong>Enterprise Plan:</strong> $99/bulan (~Rp 1,5 juta)<br/>
+                          – <strong>White-Label Setup &amp; Custom Domain</strong></li>
+                        <li>• <strong>Unit Economics Sehat:</strong> Gross Margin <strong>~85%</strong>, dengan balik modal (ROI) bagi klien hanya dari 1–2 booking langsung per bulan.</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-2">
+                      <div className="text-xs font-black uppercase text-orange-400">3. Rencana Jangka Pendek (6–12 Bulan)</div>
+                      <ul className="space-y-2 text-slate-200 leading-relaxed">
+                        <li>• <strong>Akuisisi 250+ Operator Berbayar di Bali &amp; Lombok:</strong> Melalui kemitraan komunitas pariwisata, asosiasi driver/travel, dan demo langsung.</li>
+                        <li>• <strong>Target ARR Tahun Pertama:</strong> Mencapai <strong>$150.000+ ARR (~Rp 2,4 Miliar/tahun)</strong>.</li>
+                        <li>• <strong>Sinergi Ekosistem Telkomsel / NextDev:</strong> Bundling solusi digitalisasi UMKM Pariwisata bersama layanan konektivitas &amp; solusi korporasi Telkomsel.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* NEXTDEV SLIDE 5: TEAM & FOUNDERS BACKGROUND */}
+              {currentSlide === 5 && (
+                <div className="space-y-5">
+                  <div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-sky-700 bg-sky-50 px-2.5 py-1 rounded-md">
+                      Slide 5 • Durasi: 2:25 – 2:50 (25 Detik)
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Team &amp; Founders Background</h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div className="p-5 rounded-2xl bg-slate-900 text-white space-y-2.5">
+                      <div className="text-xs font-black uppercase text-orange-400">1. Profil Founder &amp; Tim Inti</div>
+                      <h3 className="text-base font-black text-white">I Kadek Didi Suprapta</h3>
+                      <p className="text-emerald-400 font-bold">Founder &amp; CEO / Product Architect</p>
+                      <p className="text-slate-300 leading-relaxed">
+                        Praktisi industri pariwisata Bali sekaligus <em>Builder</em> produk teknologi yang membangun dan mengoperasikan langsung agen perjalanan <strong>Bali Adventours</strong> sebelum menciptakan Tripbone.com.
+                      </p>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+                      <div className="text-xs font-black uppercase text-slate-700">2. Pengalaman &amp; Keahlian Relevan</div>
+                      <ul className="space-y-2 text-slate-700 leading-relaxed">
+                        <li>• <strong>Domain Expertise Nyata:</strong> Memahami secara mendalam rasa sakit operasional tur harian, manajemen sopir/armada, penetapan harga musiman, dan distribusi OTA.</li>
+                        <li>• <strong>Full-Stack &amp; AI Engineering:</strong> Mampu mengeksekusi langsung arsitektur Multi-Tenant Cloud, integrasi multi-payment gateway, serta implementasi AI generatif &amp; WhatsApp automation.</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2.5">
+                      <div className="text-xs font-black uppercase text-emerald-800">3. Leadership &amp; Nilai Bisnis</div>
+                      <ul className="space-y-2 text-slate-700 leading-relaxed">
+                        <li>• <strong>Customer-Obsessed &amp; Grounded:</strong> Setiap fitur lahir dari kebutuhan nyata operator di lapangan, bukan asumsi di atas kertas.</li>
+                        <li>• <strong>Kedaulatan Ekonomi Lokal:</strong> Misi kami adalah mengembalikan margin keuntungan pariwisata agar tetap berputar di tangan pengusaha dan pekerja lokal Indonesia.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* NEXTDEV SLIDE 6: CLOSING */}
+              {currentSlide === 6 && (
+                <div className="flex-1 flex flex-col justify-between bg-gradient-to-br from-emerald-950 via-red-900 to-slate-950 text-white p-8 sm:p-12 rounded-2xl -m-2 sm:-m-4">
+                  <div className="flex items-center justify-between text-xs font-black tracking-widest uppercase">
+                    <span className="text-emerald-300">12th NextDev • The Impact Incubator</span>
+                    <span className="text-slate-300">Pitching Battle Denpasar • 2026</span>
+                  </div>
+                  <div className="my-8 text-center space-y-4">
+                    <h2 className="text-3xl sm:text-5xl font-black tracking-tight">
+                      Let’s Have A Good Discussion!
+                    </h2>
+                    <p className="text-sm sm:text-lg text-slate-200 max-w-2xl mx-auto leading-relaxed">
+                      Bersama Tripbone &amp; 12th NextDev Telkomsel, mari berdayakan ribuan UMKM Tur &amp; Rental Mobil Indonesia menjadi tuan rumah di negerinya sendiri.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-4 pt-6 border-t border-white/15 text-xs">
+                    <div><strong>Live App:</strong> <a href="https://tripbone.com" className="text-orange-300 underline">https://tripbone.com</a></div>
+                    <div><strong>Founder:</strong> I Kadek Didi Suprapta</div>
+                    <div><strong>Email:</strong> baliadventours@gmail.com</div>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : deckMode === 'pitch' ? (
             <>
               {/* PITCH SLIDE 1: COVER */}
               {currentSlide === 1 && (
