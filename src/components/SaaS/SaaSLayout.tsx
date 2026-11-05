@@ -1,13 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { 
   Compass, ChevronDown, Sparkles, LayoutTemplate, BriefcaseBusiness, 
-  Navigation, ShieldCheck, X, Menu, BookOpen, Store, Building2, HelpCircle, ArrowRight
+  Navigation, ShieldCheck, X, Menu, BookOpen, Store, Building2, HelpCircle, ArrowRight, CheckCircle2
 } from 'lucide-react';
 import { useSettings } from '../../lib/SettingsContext';
 import { useAuth } from '../../lib/AuthContext';
 import TopAnnouncementBar from '../TopAnnouncementBar';
 import CustomFooterEmbed from '../CustomFooterEmbed';
+import {
+  DEFAULT_SAAS_HEADER_MENU,
+  DEFAULT_SAAS_FOOTER_COLUMNS,
+  SaaSMenuItem,
+  SaaSFooterColumn,
+  SaaSCustomPage,
+  renderMenuIcon,
+  normalizeSaaSPath,
+  FloatingSaaSVisualEditor
+} from './SaaSSiteEditor';
 import { 
   initPostHog, 
   trackPostHogPageView, 
@@ -17,15 +27,32 @@ import {
 
 export default function SaaSLayout() {
   const { settings, globalBrand } = useSettings();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const location = useLocation();
   const isHome = location.pathname === '/';
+  const mainContentRef = useRef<HTMLElement | null>(null);
 
-  const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
-  const [isResourcesOpen, setIsResourcesOpen] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showCookieBanner, setShowCookieBanner] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  const headerMenu: SaaSMenuItem[] = (globalBrand?.headerMenu && Array.isArray(globalBrand.headerMenu) && globalBrand.headerMenu.length > 0)
+    ? globalBrand.headerMenu
+    : DEFAULT_SAAS_HEADER_MENU;
+
+  const footerColumns: SaaSFooterColumn[] = (globalBrand?.footerColumns && Array.isArray(globalBrand.footerColumns) && globalBrand.footerColumns.length > 0)
+    ? globalBrand.footerColumns
+    : DEFAULT_SAAS_FOOTER_COLUMNS;
+
+  const customPages: SaaSCustomPage[] = Array.isArray(globalBrand?.customPages) ? globalBrand.customPages : [];
+  const normPath = normalizeSaaSPath(location.pathname);
+  const matchedCustomPage = customPages.find(cp => normalizeSaaSPath(cp.slug) === normPath);
+
+  const isSuperAdminUser = Boolean(
+    profile?.role === 'superadmin' ||
+    (user?.email && ['baliadventours@gmail.com', 'admin@tripbone.com', 'kuotabox@gmail.com'].includes(user.email.toLowerCase()))
+  );
 
   // Initialize PostHog for Tripbone.com main site platform
   useEffect(() => {
@@ -128,8 +155,6 @@ export default function SaaSLayout() {
     }
   };
 
-  const isTransparent = false;
-
   return (
     <div className="min-h-screen font-sans selection-brand-color bg-[#f6f8f6] text-[#1a1d1b] overflow-x-hidden relative flex flex-col">
       <style>{`
@@ -171,110 +196,109 @@ export default function SaaSLayout() {
               </Link>
 
               <nav className="hidden lg:flex items-center space-x-2 text-sm font-medium text-slate-600">
-                
-                {/* Features Dropdown */}
-                <div 
-                  className="relative"
-                  onMouseEnter={() => setIsFeaturesOpen(true)}
-                  onMouseLeave={() => setIsFeaturesOpen(false)}
-                >
-                  <button className="flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors cursor-pointer hover:text-slate-950 hover:bg-slate-100/80 text-slate-700">
-                    <span className="font-semibold text-[13px]">Platform Features</span>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isFeaturesOpen ? 'rotate-180 text-emerald-600' : 'text-slate-400'}`} />
-                  </button>
-                  
-                  {/* Mega Menu */}
-                  <div className={`absolute top-full left-0 w-[620px] bg-white rounded-2xl shadow-2xl border border-slate-200/80 p-5 grid grid-cols-2 gap-3 transition-all duration-200 origin-top-left text-slate-900 ${isFeaturesOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}`}>
-                    
-                    <Link to="/features/ai" className="group/item flex items-start space-x-3.5 p-3 rounded-xl hover:bg-slate-50 transition-colors">
-                      <div className="w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0 group-hover/item:bg-emerald-600 group-hover/item:text-white text-emerald-700 transition-colors">
-                        <Sparkles className="w-4.5 h-4.5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs mb-0.5 group-hover/item:text-emerald-700 transition-colors">Gemini AI Tour Studio</h4>
-                        <p className="text-[11px] text-slate-500 leading-snug">Auto-generate tour itineraries, SEO copy, and multi-language translations.</p>
-                      </div>
-                    </Link>
+                {headerMenu.filter(m => !m.hidden).map((menuItem) => {
+                  if (menuItem.type === 'mega') {
+                    const isOpen = openDropdownId === menuItem.id;
+                    return (
+                      <div
+                        key={menuItem.id}
+                        className="relative"
+                        onMouseEnter={() => setOpenDropdownId(menuItem.id)}
+                        onMouseLeave={() => setOpenDropdownId(null)}
+                      >
+                        <button className="flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors cursor-pointer hover:text-slate-950 hover:bg-slate-100/80 text-slate-700">
+                          <span className="font-semibold text-[13px]">{menuItem.label}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180 text-emerald-600' : 'text-slate-400'}`} />
+                        </button>
 
-                    <Link to="/features/operations" className="group/item flex items-start space-x-3.5 p-3 rounded-xl hover:bg-slate-50 transition-colors">
-                      <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0 group-hover/item:bg-amber-600 group-hover/item:text-white text-amber-700 transition-colors">
-                        <Navigation className="w-4.5 h-4.5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs mb-0.5 group-hover/item:text-amber-700 transition-colors">WhatsApp & Driver Dispatch</h4>
-                        <p className="text-[11px] text-slate-500 leading-snug">Automated passenger notifications, live pickup GPS pins, and manifests.</p>
-                      </div>
-                    </Link>
+                        <div className={`absolute top-full left-0 w-[620px] bg-white rounded-2xl shadow-2xl border border-slate-200/80 p-5 grid grid-cols-2 gap-3 transition-all duration-200 origin-top-left text-slate-900 ${isOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}`}>
+                          {(menuItem.children || []).map((sub) => {
+                            const colorCls =
+                              sub.color === 'amber'
+                                ? 'bg-amber-50 border-amber-100 group-hover/item:bg-amber-600 text-amber-700'
+                                : sub.color === 'blue'
+                                ? 'bg-blue-50 border-blue-100 group-hover/item:bg-blue-600 text-blue-700'
+                                : sub.color === 'purple'
+                                ? 'bg-purple-50 border-purple-100 group-hover/item:bg-purple-600 text-purple-600'
+                                : sub.color === 'slate'
+                                ? 'bg-slate-100 border-slate-200 group-hover/item:bg-slate-900 text-slate-700'
+                                : 'bg-emerald-50 border-emerald-100 group-hover/item:bg-emerald-600 text-emerald-700';
 
-                    <Link to="/features/sales" className="group/item flex items-start space-x-3.5 p-3 rounded-xl hover:bg-slate-50 transition-colors">
-                      <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center flex-shrink-0 group-hover/item:bg-blue-600 group-hover/item:text-white text-blue-700 transition-colors">
-                        <BriefcaseBusiness className="w-4.5 h-4.5" />
+                            return (
+                              <Link
+                                key={sub.id}
+                                to={sub.href}
+                                className={`group/item flex items-start space-x-3.5 p-3 rounded-xl hover:bg-slate-50 transition-colors ${sub.fullWidth ? 'col-span-2 border-t border-slate-100 mt-1 pt-3' : ''}`}
+                              >
+                                <div className={`w-9 h-9 rounded-lg border flex items-center justify-center flex-shrink-0 group-hover/item:text-white transition-colors ${colorCls}`}>
+                                  {renderMenuIcon(sub.icon, 'w-4.5 h-4.5')}
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-slate-900 text-xs mb-0.5 group-hover/item:text-emerald-700 transition-colors">{sub.label}</h4>
+                                  {sub.description && (
+                                    <p className="text-[11px] text-slate-500 leading-snug">{sub.description}</p>
+                                  )}
+                                </div>
+                              </Link>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs mb-0.5 group-hover/item:text-blue-700 transition-colors">BYOPG Payment Engine</h4>
-                        <p className="text-[11px] text-slate-500 leading-snug">Stripe, Midtrans, Xendit, PayPal, & offline transfers direct to your account.</p>
+                    );
+                  }
+
+                  if (menuItem.type === 'dropdown') {
+                    const isOpen = openDropdownId === menuItem.id;
+                    return (
+                      <div
+                        key={menuItem.id}
+                        className="relative"
+                        onMouseEnter={() => setOpenDropdownId(menuItem.id)}
+                        onMouseLeave={() => setOpenDropdownId(null)}
+                      >
+                        <button className="flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors cursor-pointer hover:text-slate-950 hover:bg-slate-100/80 text-slate-700">
+                          <span className="font-semibold text-[13px]">{menuItem.label}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180 text-emerald-600' : 'text-slate-400'}`} />
+                        </button>
+
+                        <div className={`absolute top-full left-0 w-60 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 space-y-1 transition-all duration-200 origin-top-left text-slate-900 ${isOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}`}>
+                          {(menuItem.children || []).map((sub) => (
+                            <Link
+                              key={sub.id}
+                              to={sub.href}
+                              className="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-50 text-xs font-semibold text-slate-800 hover:text-emerald-700 transition-colors"
+                            >
+                              {renderMenuIcon(sub.icon, 'w-4 h-4 text-emerald-600')}
+                              <span>{sub.label}</span>
+                            </Link>
+                          ))}
+                        </div>
                       </div>
-                    </Link>
+                    );
+                  }
 
-                    <Link to="/features/design" className="group/item flex items-start space-x-3.5 p-3 rounded-xl hover:bg-slate-50 transition-colors">
-                      <div className="w-9 h-9 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center flex-shrink-0 group-hover/item:bg-purple-600 group-hover/item:text-white text-purple-600 transition-colors">
-                        <LayoutTemplate className="w-4.5 h-4.5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs mb-0.5 group-hover/item:text-purple-700 transition-colors">Mobile-First Storefronts</h4>
-                        <p className="text-[11px] text-slate-500 leading-snug">JoyTime & modern themes with custom domains and sub-second loading.</p>
-                      </div>
+                  const href = menuItem.href || '/';
+                  const isExternal = /^https?:\/\//i.test(href);
+                  return isExternal ? (
+                    <a
+                      key={menuItem.id}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors hover:text-slate-950 hover:bg-slate-100/80"
+                    >
+                      {menuItem.label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={menuItem.id}
+                      to={href}
+                      className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors hover:text-slate-950 hover:bg-slate-100/80"
+                    >
+                      {menuItem.label}
                     </Link>
-
-                    <Link to="/features/infrastructure" className="group/item col-span-2 flex items-start space-x-3.5 p-3 rounded-xl hover:bg-slate-50 transition-colors border-t border-slate-100 mt-1 pt-3">
-                      <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0 group-hover/item:bg-slate-900 group-hover/item:text-white text-slate-700 transition-colors">
-                        <ShieldCheck className="w-4.5 h-4.5" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs mb-0.5 group-hover/item:text-emerald-700 transition-colors">Multi-Role Architecture & 0% Take Rate</h4>
-                        <p className="text-[11px] text-slate-500 leading-snug">Admin, Supplier, Agent, and Staff roles with automated settlement logs.</p>
-                      </div>
-                    </Link>
-
-                  </div>
-                </div>
-
-                <Link to="/industries" className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors hover:text-slate-950 hover:bg-slate-100/80">Industries</Link>
-                <Link to="/compare" className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors hover:text-slate-950 hover:bg-slate-100/80">Compare</Link>
-                <Link to="/pricing" className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors hover:text-slate-950 hover:bg-slate-100/80">Pricing</Link>
-                <Link to="/docs" className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors hover:text-slate-950 hover:bg-slate-100/80">Academy</Link>
-                
-                {/* Resources Dropdown */}
-                <div 
-                  className="relative"
-                  onMouseEnter={() => setIsResourcesOpen(true)}
-                  onMouseLeave={() => setIsResourcesOpen(false)}
-                >
-                  <button className="flex items-center space-x-1 px-3 py-2 rounded-lg transition-colors cursor-pointer hover:text-slate-950 hover:bg-slate-100/80 text-slate-700">
-                    <span className="font-semibold text-[13px]">Resources</span>
-                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isResourcesOpen ? 'rotate-180 text-emerald-600' : 'text-slate-400'}`} />
-                  </button>
-
-                  <div className={`absolute top-full left-0 w-60 bg-white rounded-2xl shadow-xl border border-slate-200/80 p-2 space-y-1 transition-all duration-200 origin-top-left text-slate-900 ${isResourcesOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}`}>
-                    <Link to="/directory" className="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-50 text-xs font-semibold text-slate-800 hover:text-emerald-700 transition-colors">
-                      <Store className="w-4 h-4 text-emerald-600" />
-                      <span>Live Client Showcases</span>
-                    </Link>
-                    <Link to="/blog" className="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-50 text-xs font-semibold text-slate-800 hover:text-emerald-700 transition-colors">
-                      <BookOpen className="w-4 h-4 text-emerald-600" />
-                      <span>Operator Playbook & Blog</span>
-                    </Link>
-                    <Link to="/storyboard" className="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-50 text-xs font-semibold text-slate-800 hover:text-emerald-700 transition-colors">
-                      <Sparkles className="w-4 h-4 text-indigo-600" />
-                      <span>Pitch Storyboard & Vision</span>
-                    </Link>
-                    <Link to="/contact" className="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-50 text-xs font-semibold text-slate-800 hover:text-emerald-700 transition-colors">
-                      <HelpCircle className="w-4 h-4 text-emerald-600" />
-                      <span>Contact Support</span>
-                    </Link>
-                  </div>
-                </div>
-
+                  );
+                })}
               </nav>
             </div>
 
@@ -284,7 +308,7 @@ export default function SaaSLayout() {
                 onClick={handleLoginClick} 
                 className="text-xs font-bold px-4 py-2 rounded-lg transition-colors cursor-pointer text-slate-700 hover:text-slate-950 hover:bg-slate-100"
               >
-                {user ? 'Go to Cockpit' : 'Sign In'}
+                {user ? 'Go to Cockpit' : (globalBrand?.signInLabel || 'Sign In')}
               </button>
 
               {!user && (
@@ -292,7 +316,7 @@ export default function SaaSLayout() {
                   onClick={handleSignupClick} 
                   className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4.5 py-2.5 rounded-lg shadow-sm hover:shadow transition-all cursor-pointer text-center"
                 >
-                  <span>Start Free Trial</span>
+                  <span>{globalBrand?.ctaButtonLabel || 'Start Free Trial'}</span>
                   <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
                 </button>
               )}
@@ -311,50 +335,39 @@ export default function SaaSLayout() {
 
           {/* Mobile Drawer */}
           {isMobileMenuOpen && (
-            <div className="lg:hidden bg-white text-slate-900 border-b border-[#dce1dc] px-6 pt-4 pb-6 space-y-4 animate-in slide-in-from-top-2 duration-200 shadow-xl">
+            <div className="lg:hidden bg-white text-slate-900 border-b border-[#dce1dc] px-6 pt-4 pb-6 space-y-4 animate-in slide-in-from-top-2 duration-200 shadow-xl max-h-[80vh] overflow-y-auto">
               <div className="space-y-1">
-                <Link 
-                  to="/features/ai" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2.5 rounded-xl text-sm font-bold text-[#1a1d1b] hover:bg-[#f1f4f1]"
-                >
-                  AI Tour Builder
-                </Link>
-                <Link 
-                  to="/industries" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2.5 rounded-xl text-sm font-bold text-[#1a1d1b] hover:bg-[#f1f4f1]"
-                >
-                  Industry Solutions
-                </Link>
-                <Link 
-                  to="/compare" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2.5 rounded-xl text-sm font-bold text-[#1a1d1b] hover:bg-[#f1f4f1]"
-                >
-                  Compare Platforms
-                </Link>
-                <Link 
-                  to="/pricing" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2.5 rounded-xl text-sm font-bold text-[#1a1d1b] hover:bg-[#f1f4f1]"
-                >
-                  Pricing
-                </Link>
-                <Link 
-                  to="/directory" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2.5 rounded-xl text-sm font-bold text-[#1a1d1b] hover:bg-[#f1f4f1]"
-                >
-                  Live Storefront Demos
-                </Link>
-                <Link 
-                  to="/contact" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2.5 rounded-xl text-sm font-bold text-[#1a1d1b] hover:bg-[#f1f4f1]"
-                >
-                  Contact Support
-                </Link>
+                {headerMenu.filter(m => !m.hidden).map((menuItem) => {
+                  if (menuItem.children && menuItem.children.length > 0) {
+                    return (
+                      <div key={menuItem.id} className="space-y-1 py-1">
+                        <div className="px-3 py-1 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                          {menuItem.label}
+                        </div>
+                        {menuItem.children.map((sub) => (
+                          <Link
+                            key={sub.id}
+                            to={sub.href}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="block px-4 py-2 rounded-xl text-sm font-bold text-[#1a1d1b] hover:bg-[#f1f4f1]"
+                          >
+                            {sub.label}
+                          </Link>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={menuItem.id}
+                      to={menuItem.href || '/'}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="block px-3 py-2.5 rounded-xl text-sm font-bold text-[#1a1d1b] hover:bg-[#f1f4f1]"
+                    >
+                      {menuItem.label}
+                    </Link>
+                  );
+                })}
               </div>
 
               <div className="pt-3 border-t border-[#dce1dc] flex flex-col gap-2">
@@ -362,7 +375,7 @@ export default function SaaSLayout() {
                   onClick={handleSignupClick}
                   className="btn-kelola-primary w-full py-3 rounded-full text-white text-xs font-bold text-center"
                 >
-                  Start 7-Day Free Trial
+                  {globalBrand?.ctaButtonLabel || 'Start 7-Day Free Trial'}
                 </button>
               </div>
             </div>
@@ -372,9 +385,76 @@ export default function SaaSLayout() {
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full relative">
-        <Outlet />
+      <main ref={mainContentRef} id="tripbone-saas-main" className="flex-1 w-full relative">
+        {matchedCustomPage ? (
+          <div className="pt-20 bg-white">
+            <section className="py-24 px-6 relative overflow-hidden bg-slate-950 text-white text-center">
+              <div className="max-w-7xl mx-auto relative z-10">
+                {matchedCustomPage.badge && (
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-sm font-semibold text-emerald-300 mb-8">
+                    <Sparkles className="w-4 h-4" />
+                    <span>{matchedCustomPage.badge}</span>
+                  </div>
+                )}
+                <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight">
+                  {matchedCustomPage.title}
+                </h1>
+                <p className="text-xl text-slate-400 max-w-3xl mx-auto mb-12">
+                  {matchedCustomPage.subtitle}
+                </p>
+                {matchedCustomPage.heroImage && (
+                  <img
+                    src={matchedCustomPage.heroImage}
+                    alt={matchedCustomPage.title}
+                    className="rounded-[2rem] border border-white/10 shadow-2xl mx-auto max-w-5xl w-full object-cover"
+                  />
+                )}
+              </div>
+            </section>
+
+            {(matchedCustomPage.sections || []).map((sec, idx) => (
+              <section key={sec.id || idx} className={`py-24 px-6 border-b border-slate-100 ${idx % 2 === 1 ? 'bg-slate-50' : 'bg-white'}`}>
+                <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                  <div>
+                    {sec.badge && (
+                      <div className="font-mono text-xs font-bold text-emerald-600 uppercase tracking-widest mb-3">
+                        {sec.badge}
+                      </div>
+                    )}
+                    <h2 className="text-4xl font-bold mb-6 text-slate-900">{sec.heading}</h2>
+                    <p className="text-lg text-slate-600 mb-8">{sec.body}</p>
+                    {sec.bullets && sec.bullets.length > 0 && (
+                      <ul className="space-y-4">
+                        {sec.bullets.map((b, bIdx) => (
+                          <li key={bIdx} className="flex items-center gap-3 text-slate-700 font-medium">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                            <span>{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  {sec.imageUrl && (
+                    <div className="relative">
+                      <img src={sec.imageUrl} alt={sec.heading} className="rounded-[2rem] shadow-2xl border-[8px] border-white w-full" />
+                    </div>
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <Outlet />
+        )}
       </main>
+
+      {/* Live Visual Editor & DOM Page Override Engine */}
+      <FloatingSaaSVisualEditor
+        globalBrand={globalBrand}
+        pathname={location.pathname}
+        mainRef={mainContentRef}
+        isSuperAdminUser={isSuperAdminUser}
+      />
 
       {/* Footer - Sleek Light Modern SaaS (Kelola style) */}
       <footer className="bg-[#e7ebe7] pt-16 pb-12 text-[#4b4f4c] border-t border-[#dce1dc] mt-auto">
@@ -398,65 +478,39 @@ export default function SaaSLayout() {
                 )}
               </div>
               <p className="text-xs leading-relaxed mb-5 text-[#6f746f]">
-                Your own booking website. Not a widget. Not complicated. Drive direct sales, automate WhatsApp dispatches, and eliminate booking commissions.
+                {globalBrand?.footerDescription || "Your own booking website. Not a widget. Not complicated. Drive direct sales, automate WhatsApp dispatches, and eliminate booking commissions."}
               </p>
               <div className="text-xs text-[#4b4f4c] space-y-1.5">
                 <p className="flex items-center gap-2">
                   <span className="font-bold text-[#1a1d1b]">Support:</span>
-                  <a href="mailto:support@tripbone.com" className="text-[#00790d] hover:underline">support@tripbone.com</a>
+                  <a href={`mailto:${globalBrand?.supportEmail || 'support@tripbone.com'}`} className="text-[#00790d] hover:underline">
+                    {globalBrand?.supportEmail || 'support@tripbone.com'}
+                  </a>
                 </p>
               </div>
             </div>
             
-            {/* Column 2: Industries */}
-            <div>
-              <h4 className="text-[#1a1d1b] font-bold text-xs mb-4 tracking-wider uppercase">Industries</h4>
-              <ul className="space-y-2.5 text-xs text-[#4b4f4c]">
-                <li><Link to="/industries/day-tours" className="hover:text-[#00790d] transition-colors">Day Tour Operator</Link></li>
-                <li><Link to="/industries/atv-offroad" className="hover:text-[#00790d] transition-colors">ATV Operator</Link></li>
-                <li><Link to="/industries/rafting-outdoor" className="hover:text-[#00790d] transition-colors">Rafting Operator</Link></li>
-                <li><Link to="/industries/boat-charters" className="hover:text-[#00790d] transition-colors">Boat Charters & Cruises</Link></li>
-                <li><Link to="/industries/food-culinary" className="hover:text-[#00790d] transition-colors">Food & Culinary Tours</Link></li>
-                <li><Link to="/industries/rentals" className="hover:text-[#00790d] transition-colors">Equipment Rentals</Link></li>
-              </ul>
-            </div>
-
-            {/* Column 3: Compare Us */}
-            <div>
-              <h4 className="text-[#1a1d1b] font-bold text-xs mb-4 tracking-wider uppercase">Compare Us</h4>
-              <ul className="space-y-2.5 text-xs text-[#4b4f4c]">
-                <li><Link to="/compare/bokun" className="hover:text-[#00790d] transition-colors">Tripbone vs Bokun</Link></li>
-                <li><Link to="/compare/fareharbor" className="hover:text-[#00790d] transition-colors">Tripbone vs FareHarbor</Link></li>
-                <li><Link to="/compare/rezdy" className="hover:text-[#00790d] transition-colors">Tripbone vs Rezdy</Link></li>
-                <li><Link to="/compare/peek-pro" className="hover:text-[#00790d] transition-colors">Tripbone vs Peek Pro</Link></li>
-                <li><Link to="/compare/regiondo" className="hover:text-[#00790d] transition-colors">Tripbone vs Regiondo</Link></li>
-                <li><Link to="/compare/checkfront" className="hover:text-[#00790d] transition-colors">Tripbone vs Checkfront</Link></li>
-              </ul>
-            </div>
-
-            {/* Column 4: Platform */}
-            <div>
-              <h4 className="text-[#1a1d1b] font-bold text-xs mb-4 tracking-wider uppercase">Platform & Company</h4>
-              <ul className="space-y-2.5 text-xs text-[#4b4f4c]">
-                <li><Link to="/features" className="hover:text-[#00790d] transition-colors">Platform Features</Link></li>
-                <li><Link to="/pricing" className="hover:text-[#00790d] transition-colors">Pricing & Plans</Link></li>
-                <li><Link to="/directory" className="hover:text-[#00790d] transition-colors">Live Store Demos</Link></li>
-                <li><Link to="/about" className="hover:text-[#00790d] transition-colors">About Us</Link></li>
-                <li><Link to="/blog" className="hover:text-[#00790d] transition-colors">Blog / Guides</Link></li>
-                <li><Link to="/contact" className="hover:text-[#00790d] transition-colors">Contact Support</Link></li>
-                <li><button onClick={handleLoginClick} className="hover:text-[#00790d] transition-colors cursor-pointer">{user ? 'Dashboard' : 'Log In'}</button></li>
-              </ul>
-            </div>
-
-            {/* Column 5: Legal */}
-            <div>
-              <h4 className="text-[#1a1d1b] font-bold text-xs mb-4 tracking-wider uppercase">Legal</h4>
-              <ul className="space-y-2.5 text-xs text-[#4b4f4c]">
-                <li><Link to="/terms" className="hover:text-[#00790d] transition-colors">Terms of Service</Link></li>
-                <li><Link to="/privacy" className="hover:text-[#00790d] transition-colors">Privacy Policy</Link></li>
-                <li><Link to="/cookies" className="hover:text-[#00790d] transition-colors">Cookie Policy</Link></li>
-              </ul>
-            </div>
+            {/* Dynamic Footer Columns */}
+            {footerColumns.map((col) => (
+              <div key={col.id}>
+                <h4 className="text-[#1a1d1b] font-bold text-xs mb-4 tracking-wider uppercase">{col.title}</h4>
+                <ul className="space-y-2.5 text-xs text-[#4b4f4c]">
+                  {(col.links || []).map((lnk) => (
+                    <li key={lnk.id}>
+                      {/^https?:\/\//i.test(lnk.href) ? (
+                        <a href={lnk.href} target="_blank" rel="noopener noreferrer" className="hover:text-[#00790d] transition-colors">
+                          {lnk.label}
+                        </a>
+                      ) : (
+                        <Link to={lnk.href} className="hover:text-[#00790d] transition-colors">
+                          {lnk.label}
+                        </Link>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
 
           </div>
 

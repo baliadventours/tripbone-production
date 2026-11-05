@@ -79,6 +79,7 @@ import { Tenant } from '../types';
 import { createCreemCheckoutSession } from '../services/creemService';
 import SaaSBlogManager from '../components/SaaS/SaaSBlogManager';
 import SaaSKnowledgeBase from '../components/SaaS/SaaSKnowledgeBase';
+import { SaaSSiteCMSManager } from '../components/SaaS/SaaSSiteEditor';
 import DocViewer from '../components/Docs/DocViewer';
 import DocManager from '../components/Docs/DocManager';
 import { MailjetTester } from '../components/Admin/MailjetTester';
@@ -144,7 +145,7 @@ export default function SaaSSuperAdmin() {
     'operators' | 'end_users' | 'demo_leads' |
     'packages' | 'transactions' | 'coupons' | 'invoices' |
     'tickets' | 'announcements' |
-    'integrations' | 'branding' | 'mailjet' | 'security' | 'showcase' | 'blogs' | 'knowledge_base' | 'docs_engine'
+    'integrations' | 'branding' | 'site_cms' | 'mailjet' | 'security' | 'showcase' | 'blogs' | 'knowledge_base' | 'docs_engine'
   >('overview');
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -3109,6 +3110,7 @@ export default function SaaSSuperAdmin() {
         )}
         {(expandedMenus.system || collapsed) && (
           <div className="space-y-1 pl-0.5">
+            {renderSidebarItem('site_cms', 'Website & Menu CMS', Edit)}
             {renderSidebarItem('branding', 'Global Branding', Settings)}
             {renderSidebarItem('security', 'Admin Roles & 2FA', ShieldAlert)}
             {renderSidebarItem('mailjet', 'Audit & Telemetry', Activity)}
@@ -3530,6 +3532,7 @@ export default function SaaSSuperAdmin() {
                activeTab === 'tickets' ? 'Helpdesk Tickets' :
                activeTab === 'announcements' ? 'Announcements & Banners' :
                activeTab === 'blogs' ? 'AI Blog & Content Hub' :
+               activeTab === 'site_cms' ? 'Main Website & Menu CMS' :
                activeTab === 'branding' ? 'Platform Branding' :
                activeTab === 'security' ? 'Admin Roles & Security' :
                'Audit Logs & Operations'}
@@ -6129,7 +6132,22 @@ export default function SaaSSuperAdmin() {
                 </form>
               </div>
             </div>
+
+            <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
+              <SaaSSiteCMSManager
+                globalBrand={globalBrand}
+                setGlobalBrand={setGlobalBrand}
+                isDarkMode={isDarkMode}
+              />
+            </div>
           </div>
+        )}
+        {activeTab === 'site_cms' && (
+          <SaaSSiteCMSManager
+            globalBrand={globalBrand}
+            setGlobalBrand={setGlobalBrand}
+            isDarkMode={isDarkMode}
+          />
         )}
         {activeTab === 'mailjet' && (
           <MailjetTester isDarkMode={isDarkMode} />
